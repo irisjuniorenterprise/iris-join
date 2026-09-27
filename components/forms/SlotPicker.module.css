@@ -1,0 +1,625 @@
+/* components/forms/SlotPicker.module.css
+ *
+ * Sélecteur de créneaux d'entretien. La couleur d'accent suit le
+ * département du candidat via l'attribut data-dept (it, marketing,
+ * etudes, dev-co) : --dept (couleur pleine) et --dept-rgb (pour les
+ * teintes translucides). Les couleurs reprennent celles des cartes
+ * départements du site, légèrement assombries pour le contraste du
+ * texte blanc.
+ */
+
+.root,
+.success {
+  --dept: #1a3969;
+  --dept-rgb: 26, 57, 105;
+}
+.root[data-dept='it'],
+.success[data-dept='it'] {
+  --dept: #1a3969;
+  --dept-rgb: 26, 57, 105;
+}
+.root[data-dept='marketing'],
+.success[data-dept='marketing'] {
+  --dept: #d9491c;
+  --dept-rgb: 217, 73, 28;
+}
+.root[data-dept='etudes'],
+.success[data-dept='etudes'] {
+  --dept: #2f7fa1;
+  --dept-rgb: 47, 127, 161;
+}
+.root[data-dept='dev-co'],
+.success[data-dept='dev-co'] {
+  --dept: #1b7f8a;
+  --dept-rgb: 27, 127, 138;
+}
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Sections « jour » et « heure » : cibles de la flèche flottante (ScrollDownButton).
+   scroll-margin-top compense le header sticky lors du défilement. */
+.stepSection {
+  scroll-margin-top: 7.5rem;
+  outline: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Bandeau département                                                  */
+/* ------------------------------------------------------------------ */
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(120deg, rgba(var(--dept-rgb), 0.11), rgba(var(--dept-rgb), 0.03));
+  border: 1px solid rgba(var(--dept-rgb), 0.2);
+  animation: fadeUp 0.5s var(--ease-out) both;
+}
+
+.bannerIcon {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--dept);
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(var(--dept-rgb), 0.3);
+}
+
+.bannerText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.bannerKicker {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.bannerTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.bannerHint {
+  margin: 0 0 0 auto;
+  max-width: 26ch;
+  text-align: right;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .root {
+    gap: 1.6rem;
+  }
+  .bannerHint {
+    flex-basis: 100%;
+    max-width: none;
+    margin: 0;
+    text-align: left;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Titres d'étape                                                       */
+/* ------------------------------------------------------------------ */
+
+.stepTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0 0 1rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.stepNum {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--primary);
+  color: #ffffff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Jours                                                                */
+/* ------------------------------------------------------------------ */
+
+.dayList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.85rem;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 1rem 0.75rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    transform var(--t-fast),
+    border-color var(--t-fast),
+    box-shadow var(--t-fast),
+    background var(--t-fast),
+    color var(--t-fast);
+}
+
+.day:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--dept-rgb), 0.55);
+  box-shadow: 0 10px 22px var(--shadow);
+}
+
+.day[aria-selected='true'] {
+  background: var(--dept);
+  border-color: var(--dept);
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(var(--dept-rgb), 0.32);
+}
+
+.dayWeek {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.dayNum {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.dayMonth {
+  font-size: 0.85rem;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.dayCount {
+  margin-top: 0.6rem;
+  padding: 0.2rem 0.7rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(var(--dept-rgb), 0.1);
+  color: var(--dept);
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+}
+
+.day[aria-selected='true'] .dayCount {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.dayFull:not([aria-selected='true']) {
+  background: var(--surface-card-alt);
+}
+
+.dayFull:not([aria-selected='true']) .dayCount {
+  background: var(--surface-hover);
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Heures                                                               */
+/* ------------------------------------------------------------------ */
+
+.period + .period {
+  margin-top: 1.5rem;
+}
+
+.periodTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.85rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.periodTitle::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.slotGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 0.7rem;
+}
+
+.slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.85rem 0.5rem;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    transform var(--t-fast),
+    border-color var(--t-fast),
+    box-shadow var(--t-fast),
+    background var(--t-fast),
+    color var(--t-fast);
+  animation: slotIn 0.35s var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 25ms);
+}
+
+.slot:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--dept);
+  background: rgba(var(--dept-rgb), 0.04);
+  box-shadow: 0 8px 18px rgba(var(--dept-rgb), 0.16);
+}
+
+.slot[aria-pressed='true'] {
+  background: var(--dept);
+  border-color: var(--dept);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(var(--dept-rgb), 0.32);
+}
+
+.slotTime {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.slotState {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #15803d;
+}
+
+.slot[aria-pressed='true'] .slotState {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.slot:disabled {
+  border-style: dashed;
+  background: var(--surface-card-alt);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.slot:disabled .slotTime {
+  text-decoration: line-through;
+}
+
+.slot:disabled .slotState {
+  color: var(--text-muted);
+}
+
+.slotCheck {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  color: var(--dept);
+}
+
+/* ------------------------------------------------------------------ */
+/* Récapitulatif + confirmation                                         */
+/* ------------------------------------------------------------------ */
+
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-card-alt);
+  border: 1px solid rgba(var(--dept-rgb), 0.24);
+  box-shadow: 0 14px 30px var(--shadow);
+  animation: fadeUp 0.4s var(--ease-out) both;
+}
+
+.summaryInfo {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.summaryBadge {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--dept);
+  color: #ffffff;
+}
+
+.summaryLabel {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.summaryValue {
+  margin: 0.1rem 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.summaryMeta {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.summaryActions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .summaryActions {
+    width: 100%;
+  }
+  .summaryActions > * {
+    flex: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* États : avis, chargement, succès                                     */
+/* ------------------------------------------------------------------ */
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1rem;
+  text-align: center;
+}
+
+.noticeIcon {
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: rgba(90, 184, 222, 0.14);
+  color: var(--primary);
+}
+
+.noticeIconDanger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+}
+
+.noticeTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--primary);
+}
+
+.noticeText {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.noticeAction {
+  margin-top: 0.5rem;
+}
+
+.skeleton {
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--surface-hover) 25%, #e6edf5 50%, var(--surface-hover) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.skeletonBanner {
+  height: 76px;
+}
+
+.skeletonRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
+}
+
+.skeletonDay {
+  height: 118px;
+}
+
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 0.7rem;
+}
+
+.skeletonSlot {
+  height: 62px;
+  border-radius: 14px;
+}
+
+.success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.5rem 0;
+  text-align: center;
+}
+
+.successBadge {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--success);
+  color: #ffffff;
+  box-shadow: 0 14px 30px rgba(34, 197, 94, 0.35);
+  animation: pop 0.6s var(--ease-out) both;
+}
+
+.successTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.successText {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.successList {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+  max-width: 380px;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.successItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  background: rgba(var(--dept-rgb), 0.06);
+  border: 1px solid rgba(var(--dept-rgb), 0.16);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: left;
+  color: var(--primary);
+}
+
+.successItem svg {
+  flex-shrink: 0;
+  color: var(--dept);
+}
+
+.successNote {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Animations                                                           */
+/* ------------------------------------------------------------------ */
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slotIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}

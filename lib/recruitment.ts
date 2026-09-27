@@ -1,20 +1,28 @@
-export function getRecruitmentWindow() {
-  const open = process.env.NEXT_PUBLIC_RECRUITMENT_OPEN
-    ? new Date(process.env.NEXT_PUBLIC_RECRUITMENT_OPEN)
-    : null;
-  const close = process.env.NEXT_PUBLIC_RECRUITMENT_CLOSE
-    ? new Date(process.env.NEXT_PUBLIC_RECRUITMENT_CLOSE)
-    : null;
+// lib/recruitment.ts
 
-  return { open, close };
+/**
+ * Fenêtre de recrutement. Contrairement au site vitrine (qui codait le mois
+ * en dur), les dates sont ici configurables via variables d'environnement
+ * pour que l'équipe RH puisse ajuster la campagne sans redéploiement de code.
+ */
+const OPEN_DATE = process.env.NEXT_PUBLIC_RECRUITMENT_OPEN ?? '2026-10-01T00:00:00+01:00';
+const CLOSE_DATE = process.env.NEXT_PUBLIC_RECRUITMENT_CLOSE ?? '2026-10-31T23:59:59+01:00';
+
+export function getRecruitmentWindow() {
+  return {
+    opensAt: new Date(OPEN_DATE),
+    closesAt: new Date(CLOSE_DATE),
+  };
 }
 
-export type RecruitmentState = "not-started" | "open" | "closed";
+export function isRecruitmentOpen(now: Date = new Date()): boolean {
+  const { opensAt, closesAt } = getRecruitmentWindow();
+  return now >= opensAt && now <= closesAt;
+}
 
-export function getRecruitmentState(now = new Date()): RecruitmentState {
-  const { open, close } = getRecruitmentWindow();
-
-  if (open && now < open) return "not-started";
-  if (close && now > close) return "closed";
-  return "open";
+/** Nombre de jours restants avant la fermeture (0 si déjà fermé). */
+export function daysUntilClose(now: Date = new Date()): number {
+  const { closesAt } = getRecruitmentWindow();
+  const diff = closesAt.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
 }

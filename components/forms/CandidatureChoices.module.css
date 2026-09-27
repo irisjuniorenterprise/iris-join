@@ -1,0 +1,226 @@
+/* components/forms/CandidatureChoices.module.css */
+
+/* ============================================================
+   GROUPES DE CHOIX (questions à choix unique)
+   Même charte que CandidatureForm.module.css : mêmes variables,
+   mêmes rayons, mêmes transitions. Les options sont des cartes
+   blanches sur le fond bleuté du fieldset ; la carte choisie
+   passe en bleu IRIS.
+   ============================================================ */
+
+.groupLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.groupLabel svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--secondary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+
+/* Options longues : une par ligne. */
+.stack {
+  grid-template-columns: 1fr;
+}
+
+.option {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+/* L'input natif recouvre la carte (invisible) : clavier, lecteurs
+   d'écran et focus restent natifs. */
+.radio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.box {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  transition:
+    border-color var(--t-fast),
+    background-color var(--t-fast),
+    box-shadow var(--t-fast);
+}
+
+.dot {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  transition: border-color var(--t-fast);
+}
+
+.dot::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  transform: scale(0);
+  transition: transform var(--t-fast);
+}
+
+.optionText {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.option:hover .box {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+/* ============================================================
+   SÉLECTION MULTIPLE CLASSÉE (départements, par ordre de
+   préférence) — cartes cliquables (<button>, pas de radio natif)
+   affichant un badge numéroté à la place du point plein utilisé
+   pour les choix uniques. Même carte .box, mêmes transitions.
+   ============================================================ */
+.optionButton {
+  all: unset;
+  display: block;
+  width: 100%;
+  cursor: pointer;
+}
+
+.optionButton:hover .box {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.optionButton:focus-visible .box {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.orderBadge {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--surface);
+  transition:
+    border-color var(--t-fast),
+    background-color var(--t-fast),
+    color var(--t-fast);
+}
+
+.boxSelected {
+  border-color: var(--primary);
+  background: rgba(26, 57, 105, 0.06);
+  box-shadow: 0 0 0 3px rgba(26, 57, 105, 0.1);
+  font-weight: 600;
+}
+
+.boxSelected .orderBadge {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.radio:checked + .box {
+  border-color: var(--primary);
+  background: rgba(26, 57, 105, 0.06);
+  box-shadow: 0 0 0 3px rgba(26, 57, 105, 0.1);
+  font-weight: 600;
+}
+
+.radio:checked + .box .dot {
+  border-color: var(--primary);
+}
+
+.radio:checked + .box .dot::after {
+  transform: scale(1);
+}
+
+.radio:focus-visible + .box {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Groupe non répondu après une tentative d'envoi. */
+.groupInvalid .radio:not(:checked) + .box {
+  border-color: var(--danger);
+}
+
+/* Champ conditionnel (précision « autre engagement »). */
+.reveal {
+  animation: revealIn 0.35s var(--ease-out) both;
+}
+
+@keyframes revealIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 480px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .box {
+    padding: 0.65rem 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .box,
+  .dot,
+  .dot::after,
+  .orderBadge {
+    transition: none;
+  }
+
+  .reveal {
+    animation: none;
+  }
+}
