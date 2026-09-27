@@ -1,8 +1,11 @@
 {
   "firestore": {
     "database": "(default)",
-    "location": "eur3",
+    "location": "europe-west12",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "auth": {
+    "providers": {}
   }
 }

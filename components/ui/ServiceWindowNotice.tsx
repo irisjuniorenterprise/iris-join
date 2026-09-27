@@ -31,22 +31,21 @@ export default function ServiceWindowNotice({ status, serviceLabel }: Props) {
     );
   }
 
-  if (status.state === 'open') {
-    // Ce composant n'a rien à afficher quand le service est ouvert ; il ne
-    // devrait de toute façon pas être monté dans ce cas côté appelant.
-    return null;
+  if (status.state === 'closed') {
+    return (
+      <div className={styles.notice} role="status">
+        <span className={`${styles.icon} ${styles.iconDanger}`}>
+          <Icons.Lock size={28} />
+        </span>
+        <h3 className={styles.title}>Période terminée</h3>
+        <p className={styles.text}>
+          {serviceLabel} a fermé le <strong>{formatServiceDateTime(status.closesAt)}</strong> et
+          n&rsquo;accepte plus de nouvelles demandes.
+        </p>
+      </div>
+    );
   }
 
-  return (
-    <div className={styles.notice} role="status">
-      <span className={`${styles.icon} ${styles.iconDanger}`}>
-        <Icons.Lock size={28} />
-      </span>
-      <h3 className={styles.title}>Période terminée</h3>
-      <p className={styles.text}>
-        {serviceLabel} a fermé le <strong>{formatServiceDateTime(status.closesAt)}</strong> et
-        n&rsquo;accepte plus de nouvelles demandes.
-      </p>
-    </div>
-  );
+  // status.state === 'open' : rien à afficher ici, le formulaire prend le relais.
+  return null;
 }
