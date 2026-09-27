@@ -1,0 +1,61 @@
+/* components/ui/ServiceWindowNotice.module.css
+ *
+ * Même langage visuel que les autres états "gate" du site (voir
+ * components/forms/AuthGate.module.css, components/forms/SlotPicker.module.css) :
+ * carte centrée, badge d'icône, titre en police d'affichage, texte secondaire.
+ */
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  animation: fadeUp 0.35s ease-out both;
+}
+
+.icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  background: rgba(90, 184, 222, 0.14);
+  color: var(--primary);
+}
+
+.iconDanger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--primary);
+}
+
+.text {
+  margin: 0;
+  max-width: 48ch;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.text strong {
+  color: var(--text-primary);
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

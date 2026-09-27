@@ -1,0 +1,16 @@
+{
+  "name": "IRIS JOIN",
+  "short_name": "IRIS JOIN",
+  "description": "Portail de recrutement d'IRIS Junior Entreprise",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1a3969",
+  "icons": [
+    {
+      "src": "/logo-iris.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
