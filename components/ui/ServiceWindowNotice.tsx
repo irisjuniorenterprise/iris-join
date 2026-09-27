@@ -31,6 +31,12 @@ export default function ServiceWindowNotice({ status, serviceLabel }: Props) {
     );
   }
 
+  if (status.state === 'open') {
+    // Ce composant n'a rien à afficher quand le service est ouvert ; il ne
+    // devrait de toute façon pas être monté dans ce cas côté appelant.
+    return null;
+  }
+
   return (
     <div className={styles.notice} role="status">
       <span className={`${styles.icon} ${styles.iconDanger}`}>
