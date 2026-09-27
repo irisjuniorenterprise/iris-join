@@ -1,0 +1,990 @@
+/* components/forms/CandidatureForm.module.css */
+
+/* ============================================================
+   RECRUITMENT FORM - Styles spécifiques
+   ============================================================ */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  animation: fadeUp 0.7s ease-out forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+@keyframes fadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ============================================================
+   GUIDE "BON À SAVOIR" — panneau non fixe (scrolle avec la page),
+   avec bouton pour afficher/masquer toute la liste, et chaque
+   point repliable individuellement.
+   ============================================================ */
+.formGuide {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 1.35rem;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    135deg,
+    rgba(26, 57, 105, 0.05),
+    rgba(90, 184, 222, 0.09)
+  );
+  border: 1px solid rgba(26, 57, 105, 0.12);
+  box-shadow: 0 6px 20px rgba(26, 57, 105, 0.08);
+  animation: fieldsetIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.formGuideHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.formGuideObjective {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.formGuideObjectiveIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: var(--surface-card-alt);
+  color: var(--secondary);
+  box-shadow: 0 4px 14px rgba(26, 57, 105, 0.12);
+}
+
+.formGuideObjective p {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
+.formGuideObjective strong {
+  color: var(--primary);
+  font-family: var(--font-display);
+}
+
+/* Bouton pour afficher/masquer toute la liste */
+.formGuideToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: rgba(26, 57, 105, 0.08);
+  border: 1px solid rgba(26, 57, 105, 0.15);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all var(--t-base);
+  white-space: nowrap;
+}
+
+.formGuideToggle:hover {
+  background: rgba(26, 57, 105, 0.15);
+  border-color: var(--primary);
+}
+
+.formGuideToggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.formGuideToggleIcon {
+  transition: transform var(--t-base);
+}
+
+.formGuideToggle.expanded .formGuideToggleIcon {
+  transform: rotate(180deg);
+}
+
+/* Liste des items — n'est rendue dans le DOM que si visible (voir .tsx) */
+.formGuideList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Item individuel (accordéon) */
+.formGuideItem {
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  overflow: hidden;
+  transition: background var(--t-base), border-color var(--t-base);
+}
+
+.formGuideItemActive {
+  background: var(--surface-card-alt);
+  border-color: rgba(26, 57, 105, 0.16);
+}
+
+.formGuideItemActive .formGuideItemIcon {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.formGuideItemHeader {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.formGuideItemHeader:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.formGuideItemIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--surface-card-alt);
+  color: var(--primary);
+  transition: background var(--t-base), color var(--t-base);
+}
+
+.formGuideItemTitle {
+  flex: 1;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.formGuideItemChevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform var(--t-base), color var(--t-base);
+}
+
+.formGuideItemOpen .formGuideItemChevron {
+  transform: rotate(180deg);
+  color: var(--primary);
+}
+
+/* Corps de l'item : anime la hauteur d'un contenu de hauteur
+   variable via grid-template-rows 0fr → 1fr, sans mesure JS. */
+.formGuideItemBody {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+
+.formGuideItemBody > div {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.formGuideItemOpen .formGuideItemBody {
+  grid-template-rows: 1fr;
+}
+
+.formGuideItemText {
+  margin: 0;
+  padding: 0 0.6rem 0.65rem 2.75rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .formGuideItemBody {
+    transition: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .formGuide {
+    padding: 1rem 1.1rem 1.15rem;
+    gap: 0.85rem;
+  }
+
+  .formGuideObjective p {
+    font-size: 0.88rem;
+  }
+
+  .formGuideToggle {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.6rem;
+  }
+
+  .formGuideItemHeader {
+    padding: 0.45rem 0.4rem;
+    gap: 0.55rem;
+  }
+
+  .formGuideItemTitle {
+    font-size: 0.82rem;
+  }
+
+  .formGuideItemIcon {
+    width: 26px;
+    height: 26px;
+  }
+
+  .formGuideItemText {
+    font-size: 0.8rem;
+    padding-left: 2.4rem;
+  }
+}
+
+/* ============================================================
+   FIELDSET & LEGEND — carte bleutée cohérente avec le formGuide
+   (fond --surface-card-alt + bordure teintée), au lieu du blanc uni.
+   ============================================================ */
+.fieldset {
+  border: 1px solid rgba(26, 57, 105, 0.12);
+  border-radius: var(--radius-md);
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
+  margin: 0;
+  background: var(--surface-card-alt);
+  transition: border-color var(--t-base), box-shadow var(--t-base);
+  animation: fieldsetIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+
+.fieldset:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 6px 24px rgba(26, 57, 105, 0.08);
+}
+
+@keyframes fieldsetIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text-primary);
+  padding: 0 0.5rem;
+  background: var(--surface-card-alt);
+  max-width: calc(100% - 1rem);
+  margin-bottom: 0.25rem;
+}
+
+.legend svg {
+  color: var(--secondary);
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   ROW (Mise en page deux colonnes — nom & prénom)
+   ============================================================ */
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1.25rem;
+}
+
+/* ============================================================
+   CHAMPS
+   ============================================================ */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.inputWrapper {
+  position: relative;
+  width: 100%;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: color var(--t-base);
+  z-index: 2;
+}
+
+.textareaWrapper .inputIcon {
+  top: 0.9rem;
+  transform: none;
+}
+
+.input {
+  width: 100%;
+  padding: 1.2rem 0.75rem 0.5rem 2.5rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  background: var(--surface-card-alt);
+  color: var(--text-primary);
+  transition: border-color var(--t-base), box-shadow var(--t-base);
+  outline: none;
+  appearance: none;
+}
+
+.input::placeholder {
+  color: transparent;
+}
+
+.input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(26, 57, 105, 0.15);
+}
+
+.input.invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+  padding-top: 1.4rem;
+  padding-left: 2.5rem;
+}
+
+/* Sélecteurs : appearance:none masque la flèche native — remplacée
+   par l'icône ChevronDown rendue dans le JSX (.selectChevron), qui
+   pivote au focus. */
+.select {
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+.select option {
+  padding: 0.5rem;
+}
+
+.selectChevron {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: color var(--t-base), transform var(--t-base);
+  z-index: 2;
+}
+
+.select:focus ~ .selectChevron {
+  color: var(--primary);
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.select:not([value='']) ~ .selectChevron {
+  color: var(--primary);
+}
+
+/* Champ date */
+.input[type='date'] {
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  padding-right: 2.5rem;
+}
+
+.input[type='date']:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(26, 57, 105, 0.15);
+}
+
+.input[type='date']:not(:placeholder-shown) {
+  color: var(--text-primary);
+}
+
+/* Personnalisation légère du sélecteur de date */
+.input[type='date']::-webkit-calendar-picker-icon {
+  color: var(--primary);
+  filter: invert(30%) sepia(50%) saturate(500%) hue-rotate(180deg) brightness(110%) contrast(90%);
+}
+
+.input[type='date']::-webkit-datetime-edit {
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+.input[type='date']::-webkit-datetime-edit-fields-marker {
+  color: var(--primary);
+}
+
+.input[type='date']::-webkit-datetime-edit-text {
+  color: var(--text-primary);
+  font-family: var(--font-body);
+}
+
+.floatingLabel {
+  position: absolute;
+  left: 2.5rem;
+  top: 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  pointer-events: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: left top;
+  background: transparent;
+  padding: 0 2px;
+}
+
+.input:focus ~ .floatingLabel,
+.input:not(:placeholder-shown) ~ .floatingLabel,
+.select:focus ~ .floatingLabel,
+.select:not([value='']) ~ .floatingLabel {
+  top: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--surface-card-alt);
+  padding: 0 4px;
+}
+
+.input.invalid:focus ~ .floatingLabel,
+.input.invalid:not(:placeholder-shown) ~ .floatingLabel,
+.select.invalid:focus ~ .floatingLabel,
+.select.invalid:not([value='']) ~ .floatingLabel {
+  color: var(--danger);
+}
+
+.input:focus ~ .inputIcon,
+.input:not(:placeholder-shown) ~ .inputIcon,
+.select:focus ~ .inputIcon,
+.select:not([value='']) ~ .inputIcon {
+  color: var(--primary);
+}
+
+.input.invalid:focus ~ .inputIcon,
+.input.invalid:not(:placeholder-shown) ~ .inputIcon,
+.select.invalid:focus ~ .inputIcon,
+.select.invalid:not([value='']) ~ .inputIcon {
+  color: var(--danger);
+}
+
+/* Label flottant pour input[type="date"] : toujours levé dès qu'une valeur existe */
+.input[type='date']:not([value='']) ~ .floatingLabel,
+.input[type='date']:focus ~ .floatingLabel {
+  top: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--surface-card-alt);
+  padding: 0 4px;
+}
+
+.input[type='date'].invalid:not([value='']) ~ .floatingLabel,
+.input[type='date'].invalid:focus ~ .floatingLabel {
+  color: var(--danger);
+}
+
+/* ============================================================
+   RTL (Arabe)
+   ============================================================ */
+.form.rtl .inputIcon {
+  left: auto;
+  right: 0.75rem;
+}
+
+.form.rtl .input {
+  padding: 1.2rem 2.5rem 0.5rem 0.75rem;
+}
+
+.form.rtl .select {
+  padding-right: 0.75rem;
+  padding-left: 2.5rem;
+}
+
+.form.rtl .selectChevron {
+  right: auto;
+  left: 0.85rem;
+}
+
+.form.rtl .floatingLabel {
+  left: auto;
+  right: 2.5rem;
+  transform-origin: right top;
+}
+
+.form.rtl .input:focus ~ .floatingLabel,
+.form.rtl .input:not(:placeholder-shown) ~ .floatingLabel,
+.form.rtl .select:focus ~ .floatingLabel,
+.form.rtl .select:not([value='']) ~ .floatingLabel {
+  left: auto;
+  right: 2.5rem;
+}
+
+.form.rtl .textarea {
+  padding-left: 0.75rem;
+  padding-right: 2.5rem;
+}
+
+.form.rtl .textareaWrapper .inputIcon {
+  left: auto;
+  right: 0.75rem;
+}
+
+.form.rtl .legend {
+  flex-direction: row-reverse;
+}
+
+.form.rtl .checkboxLabel {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.form.rtl .checkboxText {
+  text-align: right;
+}
+
+.form.rtl .successMessage,
+.form.rtl .errorMessage {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.form.rtl .submitButton {
+  align-self: flex-end;
+}
+
+/* ============================================================
+   CHECKBOX
+   ============================================================ */
+.checkboxField {
+  margin-top: 0.25rem;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.checkbox {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 0.1rem;
+  accent-color: var(--primary);
+  cursor: pointer;
+  border-radius: 4px;
+  border: 2px solid var(--border);
+  transition: border-color 0.2s ease;
+}
+
+.checkbox:checked {
+  border-color: var(--primary);
+}
+
+.checkbox:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.checkboxText {
+  flex: 1;
+}
+
+.checkboxText small {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+.link {
+  color: var(--primary);
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.link:hover {
+  color: var(--primary-hover);
+}
+
+/* ============================================================
+   HELPERS & MESSAGES
+   ============================================================ */
+.helper {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+.error {
+  font-size: 0.85rem;
+  color: var(--danger);
+  margin-top: 0.15rem;
+  animation: shake 0.3s ease;
+}
+
+/* ============================================================
+   BOUTON D'ENVOI
+   ============================================================ */
+.submitButton {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.submitButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--on-secondary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   VÉRIFICATION DE DOUBLON EN COURS
+   ============================================================ */
+.checkingCard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-card-alt);
+  border: 1px solid rgba(26, 57, 105, 0.12);
+  box-shadow: 0 6px 20px rgba(26, 57, 105, 0.08);
+  animation: fadeUp 0.35s ease-out both;
+}
+
+.checkingCard p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+
+.checkingCard .spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(26, 57, 105, 0.25);
+  border-top-color: var(--primary);
+}
+
+/* ============================================================
+   CANDIDATURE DÉJÀ ENVOYÉE — écran affiché à la place du
+   formulaire lorsqu'une candidature existe déjà pour l'e-mail
+   vérifié. Même langage visuel que le reste (carte teintée,
+   badge circulaire) pour un rendu cohérent et professionnel.
+   ============================================================ */
+.alreadySubmitted {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.85rem;
+  padding: 2.75rem 1.75rem 2.25rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-card-alt);
+  border: 1px solid rgba(26, 57, 105, 0.12);
+  box-shadow: 0 6px 20px rgba(26, 57, 105, 0.08);
+  animation: fadeUp 0.4s ease-out both;
+}
+
+.alreadySubmittedIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success);
+}
+
+.alreadySubmittedTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.alreadySubmittedText {
+  margin: 0;
+  max-width: 38rem;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.alreadySubmittedText strong {
+  color: var(--text-primary);
+}
+
+.alreadySubmittedActions {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.35rem;
+}
+
+.alreadySubmittedHelper {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 480px) {
+  .alreadySubmitted {
+    padding: 2rem 1.1rem 1.75rem;
+  }
+
+  .alreadySubmittedTitle {
+    font-size: 1.05rem;
+  }
+
+  .alreadySubmittedText {
+    font-size: 0.86rem;
+  }
+}
+
+/* ============================================================
+   MESSAGES DE SUCCÈS / ERREUR
+   ============================================================ */
+.successMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid var(--success);
+  border-radius: var(--radius-sm);
+  color: var(--success);
+  margin-top: 0.5rem;
+}
+
+.successMessage svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--success);
+}
+
+.successMessage strong {
+  display: block;
+  font-weight: 600;
+}
+
+.successMessage p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.errorMessage {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  margin-top: 0.5rem;
+}
+
+.errorMessage svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: var(--danger);
+}
+
+.errorMessage strong {
+  display: block;
+  font-weight: 600;
+}
+
+.errorMessage p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-6px);
+  }
+  75% {
+    transform: translateX(6px);
+  }
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+/* Tablettes : la row passe en une colonne dès 640 px */
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .form {
+    gap: 1.5rem;
+  }
+
+  .fieldset {
+    padding: 1rem 1rem 0.5rem 1rem;
+  }
+
+  .legend {
+    font-size: 0.9rem;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .input {
+    padding: 1rem 0.6rem 0.4rem 2.2rem;
+    font-size: 0.95rem;
+  }
+
+  .form.rtl .input {
+    padding: 1rem 2.2rem 0.4rem 0.6rem;
+  }
+
+  .inputIcon {
+    left: 0.6rem;
+    width: 18px;
+    height: 18px;
+  }
+
+  .form.rtl .inputIcon {
+    left: auto;
+    right: 0.6rem;
+  }
+
+  .selectChevron {
+    right: 0.6rem;
+  }
+
+  .form.rtl .selectChevron {
+    right: auto;
+    left: 0.6rem;
+  }
+
+  .floatingLabel {
+    left: 2.2rem;
+    top: 0.8rem;
+    font-size: 0.9rem;
+  }
+
+  .form.rtl .floatingLabel {
+    left: auto;
+    right: 2.2rem;
+  }
+
+  .input:focus ~ .floatingLabel,
+  .input:not(:placeholder-shown) ~ .floatingLabel,
+  .select:focus ~ .floatingLabel,
+  .select:not([value='']) ~ .floatingLabel {
+    top: 0.25rem;
+    font-size: 0.65rem;
+  }
+
+  .submitButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .form.rtl .submitButton {
+    align-self: center;
+  }
+
+  .checkboxLabel {
+    font-size: 0.85rem;
+  }
+
+  .successMessage,
+  .errorMessage {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .form.rtl .successMessage,
+  .form.rtl .errorMessage {
+    flex-direction: column;
+  }
+}
