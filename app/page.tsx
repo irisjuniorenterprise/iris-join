@@ -76,7 +76,7 @@ export default function HomePage() {
 
             <div className="hero-meta">
               <div className="hero-meta-item">
-                <span className="hero-meta-value">3</span>
+                <span className="hero-meta-value">4</span>
                 <span className="hero-meta-label">départements ouverts</span>
               </div>
               <div className="hero-meta-item">
