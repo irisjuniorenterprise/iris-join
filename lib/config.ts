@@ -6,4 +6,4 @@ export const PARENT_SITE_URL = 'https://irisje.com';
 export const TWITTER_HANDLE = '@IRIS_JE';
 export const LINKEDIN_URL = 'https://www.linkedin.com/company/iris-junior-creation/';
 // TODO: remplacer par un vrai visuel OG 1200x630 dédié à IRIS JOIN (voir note en fin de réponse)
-export const DEFAULT_OG_IMAGE = '/logo-iris.png';
+export const DEFAULT_OG_IMAGE = '/og-image.png';
