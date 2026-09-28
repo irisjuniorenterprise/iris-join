@@ -39,7 +39,7 @@ export default function ServiceWindowNotice({ status, serviceLabel }: Props) {
         </span>
         <h3 className={styles.title}>Période terminée</h3>
         <p className={styles.text}>
-          {serviceLabel} a fermé le <strong>{formatServiceDateTime(status.closesAt)}</strong> et
+          {serviceLabel} a fermé le <strong>{formatServiceDateTime(status.closesAt)+" "}</strong> et
           n&rsquo;accepte plus de nouvelles demandes.
         </p>
       </div>

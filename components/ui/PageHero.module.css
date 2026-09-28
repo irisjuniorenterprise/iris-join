@@ -1,0 +1,260 @@
+/* components/ui/PageHero.module.css
+   Hero des pages candidature / entretien.
+   Les valeurs de base sont les états FINAUX ; les animations ne définissent
+   que l'état de départ (« from »). Sans animation (mouvement réduit), la page
+   s'affiche donc directement dans son état complet. */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  color: var(--text-inverse);
+  background: var(--background-hero);
+}
+
+/* Un seul halo bleu ciel, très discret, derrière les anneaux. */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60% 90% at 88% 8%, rgba(90, 184, 222, 0.16), transparent 70%);
+  pointer-events: none;
+}
+
+/* ------------------------------ Anneaux ------------------------------ */
+
+.rings {
+  position: absolute;
+  top: -90px;
+  right: -170px;
+  width: 640px;
+  height: 640px;
+  pointer-events: none;
+}
+
+.rings circle {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
+}
+
+.rings .ringArc {
+  fill: none;
+  stroke: var(--secondary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+  animation: drawArc 1.1s 0.1s var(--ease-out) backwards;
+}
+
+.rings .ringDot {
+  fill: var(--secondary);
+  stroke: none;
+  animation: dotIn 0.4s 1s ease-out backwards;
+}
+
+@keyframes drawArc {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes dotIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------ Titre ------------------------------ */
+
+.body {
+  position: relative;
+  max-width: 40rem;
+  padding: 4.5rem 0 3.25rem;
+}
+
+.title {
+  margin: 0 0 1rem;
+  font-size: clamp(2.1rem, 5vw, 3.4rem);
+  font-weight: 800;
+  line-height: 1.06;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.22);
+}
+
+.lead {
+  max-width: 34rem;
+  margin: 0;
+  font-size: clamp(1rem, 1.4vw, 1.1rem);
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.8);
+  text-wrap: pretty;
+}
+
+/* ------------------------------ Parcours ------------------------------ */
+
+.railBar {
+  position: relative;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 24, 46, 0.28);
+}
+
+.rail {
+  display: flex;
+  max-width: 46rem;
+  margin: 0;
+  padding: 1.25rem 0 1.4rem;
+  list-style: none;
+}
+
+.item {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.step {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 6px;
+}
+
+.track {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.7rem;
+}
+
+.node {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.75);
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Étape déjà parcourue. */
+.item[data-state='done'] .node {
+  border-color: var(--secondary);
+  color: #ffffff;
+}
+
+/* Étape de la page courante : disque orange + anneau qui s'ouvre au chargement. */
+.item[data-state='current'] .node {
+  border-color: var(--secondary);
+  background: var(--secondary);
+  color: var(--on-secondary);
+  box-shadow: 0 0 0 4px rgba(255, 102, 51, 0.22);
+  animation: ringIn 0.9s 0.3s var(--ease-out) backwards;
+}
+
+@keyframes ringIn {
+  from {
+    box-shadow: 0 0 0 0 rgba(255, 102, 51, 0.55);
+  }
+}
+
+/* Trait entre deux étapes ; rempli quand l'étape de gauche est passée. */
+.line {
+  position: relative;
+  flex: 1;
+  height: 1.5px;
+  margin: 0 0.85rem;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.lineFill {
+  position: absolute;
+  inset: 0;
+  background: var(--secondary);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.item[data-filled='true'] .lineFill {
+  transform: scaleX(1);
+  animation: drawLine 0.8s 0.5s var(--ease-out) backwards;
+}
+
+@keyframes drawLine {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* ------------------------------ Libellés ------------------------------ */
+
+.labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.hint {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.item[data-state='next'] .label {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+a.step:hover .label {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ------------------------------ Mobile ------------------------------ */
+
+@media (max-width: 560px) {
+  .rings {
+    top: -60px;
+    right: -150px;
+    width: 420px;
+    height: 420px;
+  }
+  .body {
+    padding: 3rem 0 2.5rem;
+  }
+  .line {
+    margin: 0 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hint {
+    display: none;
+  }
+}
+
+/* Mouvement réduit : pas d'animation, tout s'affiche directement dans son état final. */
+@media (prefers-reduced-motion: reduce) {
+  .rings .ringArc,
+  .rings .ringDot,
+  .item[data-state='current'] .node,
+  .item[data-filled='true'] .lineFill {
+    animation: none;
+  }
+}
