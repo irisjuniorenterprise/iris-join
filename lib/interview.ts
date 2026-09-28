@@ -87,3 +87,36 @@ export function getDayParts(date: string): DayParts {
 export function formatDayLong(date: string): string {
   return getDayParts(date).long;
 }
+
+/* ------------------------------------------------------------------ */
+/* Horaires d'entretien (compte à rebours)                              */
+/* ------------------------------------------------------------------ */
+
+/** Durée d'un entretien, en minutes — sert à savoir quand il est « terminé ». */
+export const INTERVIEW_DURATION_MINUTES = 30;
+
+// Les horaires de créneaux sont en heure de Tunis. La Tunisie est en UTC+1
+// toute l'année (pas de changement d'heure) : on fixe donc le décalage pour
+// que le résultat ne dépende jamais du fuseau de l'appareil du candidat.
+const TUNIS_UTC_OFFSET = '+01:00';
+
+/** Début du créneau en millisecondes (epoch). NaN si date/heure invalides. */
+export function getSlotStartMs(date: string, time: string): number {
+  return new Date(`${date}T${time}:00${TUNIS_UTC_OFFSET}`).getTime();
+}
+
+/** Fin prévue du créneau en millisecondes (epoch). */
+export function getSlotEndMs(date: string, time: string): number {
+  return getSlotStartMs(date, time) + INTERVIEW_DURATION_MINUTES * 60_000;
+}
+
+const fmtClockTunis = new Intl.DateTimeFormat('fr-FR', {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Africa/Tunis',
+});
+
+/** "11:00" — heure (Tunis) d'un instant donné. */
+export function formatClockTunis(ms: number): string {
+  return fmtClockTunis.format(new Date(ms));
+}

@@ -4,7 +4,6 @@ import { buildMetadata } from '@/lib/metadata';
 import { getServiceWindowStates } from '@/lib/settings-store';
 import CandidatureGate from '@/components/candidature/CandidatureGate';
 import PageHero from '@/components/ui/PageHero';
-import { Icons } from '@/components/icons/Icons';
 
 // La disponibilité dépend de l'heure actuelle et d'un réglage modifiable
 // par l'admin sans redéploiement : la page doit donc être recalculée à
@@ -24,8 +23,8 @@ export default async function CandidaturePage() {
   return (
     <>
       <PageHero
-        icon={Icons.Briefcase}
-        title={<>Votre <span className="text-accent-orange">candidature</span></>}
+        current="candidature"
+        title="Déposez votre candidature"
         description="Remplissez ce formulaire pour postuler. Une fois envoyée, vous pourrez réserver votre créneau d'entretien immédiatement."
       />
       <section style={{ paddingTop: '2.5rem' }}>
