@@ -20,6 +20,7 @@ import { useAuth } from '@/lib/auth';
 import { useToast } from '@/lib/toast';
 import { Icons } from '@/components/icons/Icons';
 import ScrollDownButton, { type ScrollDownStep } from '@/components/ui/ScrollDownButton';
+import InterviewCountdown from '@/components/forms/InterviewCountdown';
 import { DEPARTMENT_LABELS, getDayParts, type DepartmentKey } from '@/lib/interview';
 import styles from './SlotPicker.module.css';
 
@@ -387,6 +388,9 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
               {bookedDept}
             </li>
           </ul>
+
+          <InterviewCountdown date={bookedSlot.date} time={bookedSlot.time} />
+
           <p className={styles.successNote}>Merci d&rsquo;arriver 5 minutes en avance.</p>
         </div>
       </div>
