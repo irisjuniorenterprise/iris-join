@@ -13,10 +13,15 @@
 import { FieldValue, type DocumentData, type DocumentReference } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebase-admin';
 import {
+  DEFAULT_INTERVIEW_MODE,
   DEPARTMENT_KEYS,
+  REMINDER_LEAD_HOURS,
   departmentStoredValues,
+  getSlotStartMs,
   normalizeDepartment,
+  normalizeInterviewMode,
   type DepartmentKey,
+  type InterviewMode,
 } from './interview';
 
 export type Slot = {
@@ -24,6 +29,8 @@ export type Slot = {
   date: string; // "2026-10-12"
   time: string; // "09:30"
   department: DepartmentKey;
+  /** Présentiel ou en ligne — choisi par l'admin pour chaque créneau. */
+  mode: InterviewMode;
   booked: boolean;
 };
 
@@ -57,6 +64,7 @@ function toSlot(id: string, data: DocumentData): Slot | null {
     date: data.date,
     time: data.time,
     department,
+    mode: normalizeInterviewMode(data.mode),
     booked: Boolean(data.booked),
   };
 }
@@ -120,6 +128,7 @@ async function ensureSlotGrid(): Promise<void> {
             date,
             time,
             department,
+            mode: DEFAULT_INTERVIEW_MODE,
             booked: false,
           }),
         );
@@ -180,6 +189,18 @@ export async function getCandidateDepartment(email: string): Promise<CandidateLo
   return { status: 'ok', department };
 }
 
+/** Nom complet du candidat associé à cet e-mail (ou null si aucune candidature). */
+export async function getCandidatureNameByEmail(email: string): Promise<string | null> {
+  const db = getAdminDb();
+  if (!db) throw new Error('firestore-not-configured');
+
+  const snapshot = await db.collection('candidatures').where('email', '==', email).limit(1).get();
+  if (snapshot.empty) return null;
+
+  const nomPrenom = snapshot.docs[0].data().nomPrenom;
+  return typeof nomPrenom === 'string' && nomPrenom.trim() ? nomPrenom.trim() : null;
+}
+
 /** Réservation existante de l'e-mail (ou null). */
 export async function getBookingForEmail(email: string): Promise<Slot | null> {
   const db = getAdminDb();
@@ -209,7 +230,11 @@ export async function releaseMismatchedBookings(
 
   for (const doc of snapshot.docs) {
     if (normalizeDepartment(doc.data().department) === department) continue;
-    batch.update(doc.ref, { booked: false, bookedByEmail: FieldValue.delete() });
+    batch.update(doc.ref, {
+      booked: false,
+      bookedByEmail: FieldValue.delete(),
+      reminderSentAt: FieldValue.delete(),
+    });
     released = true;
   }
 
@@ -252,7 +277,7 @@ export async function bookSlot(
     );
     if (!existing.empty) return { ok: false, reason: 'duplicate-email' as const };
 
-    tx.update(ref, { booked: true, bookedByEmail: email });
+    tx.update(ref, { booked: true, bookedByEmail: email, reminderSentAt: FieldValue.delete() });
     return { ok: true, slot: { ...slot, booked: true } };
   });
 }
@@ -275,7 +300,12 @@ export async function listAllSlots(): Promise<AdminSlot[]> {
     .sort((a, b) => sortSlots(a, b) || a.department.localeCompare(b.department));
 }
 
-export type NewSlot = { date: string; time: string; department: DepartmentKey };
+export type NewSlot = {
+  date: string;
+  time: string;
+  department: DepartmentKey;
+  mode?: InterviewMode;
+};
 
 /**
  * Crée des créneaux. Les combinaisons (date, heure, département) qui
@@ -305,7 +335,13 @@ export async function createSlots(items: NewSlot[]): Promise<{ created: number; 
     existing.add(key);
     created += 1;
 
-    const data = { date: item.date, time: item.time, department: item.department, booked: false };
+    const data = {
+      date: item.date,
+      time: item.time,
+      department: item.department,
+      mode: item.mode ?? DEFAULT_INTERVIEW_MODE,
+      booked: false,
+    };
     writes.push(
       (async () => {
         try {
@@ -324,12 +360,19 @@ export async function createSlots(items: NewSlot[]): Promise<{ created: number; 
   return { created, skipped };
 }
 
-export type SlotPatch = { date?: string; time?: string; department?: DepartmentKey };
+export type SlotPatch = {
+  date?: string;
+  time?: string;
+  department?: DepartmentKey;
+  mode?: InterviewMode;
+};
 
 /**
- * Modifie la date, l'heure ou le département d'un créneau. Un créneau
- * réservé peut être déplacé dans le temps (le candidat le suit), mais pas
- * changé de département (il ne correspondrait plus à sa candidature).
+ * Modifie la date, l'heure, le département ou le mode d'un créneau. Un
+ * créneau réservé peut être déplacé dans le temps (le candidat le suit),
+ * mais pas changé de département (il ne correspondrait plus à sa
+ * candidature). Si la date ou l'heure d'un créneau réservé change, le
+ * rappel « 24 h avant » sera renvoyé pour le nouvel horaire.
  */
 export async function updateSlot(
   id: string,
@@ -352,27 +395,36 @@ export async function updateSlot(
       date: patch.date ?? previous.date,
       time: patch.time ?? previous.time,
       department: patch.department ?? previous.department,
+      mode: patch.mode ?? previous.mode,
     };
 
     if (previous.booked && next.department !== previous.department) {
       return { ok: false, reason: 'department-locked' as const };
     }
 
-    const unchanged =
-      next.date === previous.date &&
-      next.time === previous.time &&
-      next.department === previous.department;
+    const scheduleChanged =
+      next.date !== previous.date ||
+      next.time !== previous.time ||
+      next.department !== previous.department;
+    const unchanged = !scheduleChanged && next.mode === previous.mode;
 
     if (!unchanged) {
-      const sameDay = await tx.get(db.collection(COLLECTION).where('date', '==', next.date));
-      const clash = sameDay.docs.some((d) => {
-        if (d.id === id) return false;
-        const other = toSlot(d.id, d.data());
-        return !!other && other.time === next.time && other.department === next.department;
-      });
-      if (clash) return { ok: false, reason: 'duplicate' as const };
+      if (scheduleChanged) {
+        const sameDay = await tx.get(db.collection(COLLECTION).where('date', '==', next.date));
+        const clash = sameDay.docs.some((d) => {
+          if (d.id === id) return false;
+          const other = toSlot(d.id, d.data());
+          return !!other && other.time === next.time && other.department === next.department;
+        });
+        if (clash) return { ok: false, reason: 'duplicate' as const };
+      }
 
-      tx.update(ref, next);
+      const timeChanged = next.date !== previous.date || next.time !== previous.time;
+      tx.update(ref, {
+        ...next,
+        // Nouvel horaire d'un créneau réservé : le rappel repart pour ce nouvel horaire.
+        ...(previous.booked && timeChanged ? { reminderSentAt: FieldValue.delete() } : {}),
+      });
     }
 
     return { ok: true, slot: { ...previous, ...next }, previous };
@@ -436,9 +488,13 @@ export async function assignSlot(
       ? toAdminSlot(previousDocs[0].id, previousDocs[0].data())
       : null;
 
-    tx.update(ref, { booked: true, bookedByEmail: email });
+    tx.update(ref, { booked: true, bookedByEmail: email, reminderSentAt: FieldValue.delete() });
     for (const prev of previousDocs) {
-      tx.update(prev.ref, { booked: false, bookedByEmail: FieldValue.delete() });
+      tx.update(prev.ref, {
+        booked: false,
+        bookedByEmail: FieldValue.delete(),
+        reminderSentAt: FieldValue.delete(),
+      });
     }
 
     return { ok: true, slot: { ...target, booked: true, bookedByEmail: email }, previous };
@@ -464,7 +520,91 @@ export async function releaseSlot(
     if (!slot.booked || !slot.bookedByEmail) return { ok: false, reason: 'not-booked' as const };
 
     const email = slot.bookedByEmail;
-    tx.update(ref, { booked: false, bookedByEmail: FieldValue.delete() });
+    tx.update(ref, {
+      booked: false,
+      bookedByEmail: FieldValue.delete(),
+      reminderSentAt: FieldValue.delete(),
+    });
     return { ok: true, slot: { ...slot, booked: false, bookedByEmail: undefined }, email };
   });
+}
+
+/* ================================================================== */
+/* Rappels (24 h avant l'entretien)                                     */
+/* ================================================================== */
+
+export type DueReminder = {
+  slotId: string;
+  email: string;
+  date: string;
+  time: string;
+  department: DepartmentKey;
+  mode: InterviewMode;
+};
+
+/**
+ * Réserve (« claim ») les rappels à envoyer maintenant : créneaux réservés
+ * dont l'entretien commence dans moins de 24 h (et pas encore commencé) et
+ * dont le rappel n'a pas déjà été envoyé. Chaque créneau est marqué
+ * `reminderSentAt` dans une transaction AVANT l'envoi : deux exécutions
+ * simultanées du cron ne peuvent donc jamais envoyer deux fois le même
+ * rappel. Si l'envoi échoue, appeler releaseReminderClaim() pour réessayer
+ * à la prochaine exécution.
+ */
+export async function claimDueReminders(now: Date = new Date()): Promise<DueReminder[]> {
+  const db = getAdminDb();
+  if (!db) throw new Error('firestore-not-configured');
+
+  const nowMs = now.getTime();
+  const limitMs = nowMs + REMINDER_LEAD_HOURS * 60 * 60 * 1000;
+
+  // Un seul champ filtré : aucun index composite nécessaire.
+  const snapshot = await db.collection(COLLECTION).where('booked', '==', true).get();
+
+  const candidates = snapshot.docs.filter((doc) => {
+    const data = doc.data();
+    if (data.reminderSentAt) return false;
+    if (typeof data.bookedByEmail !== 'string' || !data.bookedByEmail) return false;
+    const slot = toSlot(doc.id, data);
+    if (!slot) return false;
+    const startMs = getSlotStartMs(slot.date, slot.time);
+    return Number.isFinite(startMs) && startMs > nowMs && startMs <= limitMs;
+  });
+
+  const claimed: DueReminder[] = [];
+
+  for (const candidate of candidates) {
+    const result = await db.runTransaction(async (tx): Promise<DueReminder | null> => {
+      const doc = await tx.get(candidate.ref);
+      const data = doc.data();
+      if (!doc.exists || !data) return null;
+
+      const slot = toSlot(doc.id, data);
+      const email = typeof data.bookedByEmail === 'string' ? data.bookedByEmail : '';
+      if (!slot || !slot.booked || !email || data.reminderSentAt) return null;
+
+      const startMs = getSlotStartMs(slot.date, slot.time);
+      if (!Number.isFinite(startMs) || startMs <= nowMs || startMs > limitMs) return null;
+
+      tx.update(candidate.ref, { reminderSentAt: new Date().toISOString() });
+      return {
+        slotId: doc.id,
+        email,
+        date: slot.date,
+        time: slot.time,
+        department: slot.department,
+        mode: slot.mode,
+      };
+    });
+    if (result) claimed.push(result);
+  }
+
+  return claimed;
+}
+
+/** Annule la réservation d'un rappel dont l'envoi a échoué (nouvelle tentative au prochain passage). */
+export async function releaseReminderClaim(slotId: string): Promise<void> {
+  const db = getAdminDb();
+  if (!db) throw new Error('firestore-not-configured');
+  await db.collection(COLLECTION).doc(slotId).update({ reminderSentAt: FieldValue.delete() });
 }

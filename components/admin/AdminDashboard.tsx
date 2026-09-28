@@ -40,8 +40,6 @@ type Status = 'idle' | 'loading' | 'ready' | 'forbidden' | 'error';
 type MutationResult = {
   ok?: boolean;
   message?: string;
-  notified?: boolean;
-  emailConfigured?: boolean;
   moved?: boolean;
   created?: number;
   skipped?: number;
@@ -177,7 +175,6 @@ export default function AdminDashboard() {
     method: string,
     body: unknown,
     successMessage: (r: MutationResult) => string,
-    notifyRequested = false,
   ): Promise<boolean> {
     const res = await call<MutationResult>(path, { method, body });
     if (!res.ok || !res.data?.ok) {
@@ -187,9 +184,6 @@ export default function AdminDashboard() {
     }
 
     showToast(successMessage(res.data), 'success');
-    if (notifyRequested && res.data.notified === false && res.data.emailConfigured === false) {
-      showToast("SMTP non configuré : le candidat n'a pas reçu d'e-mail. Prévenez-le manuellement.", 'info');
-    }
     setDialog(null);
     await load(true);
     return true;
@@ -213,13 +207,12 @@ export default function AdminDashboard() {
         currentSlot={currentSlot}
         slots={allSlots}
         onClose={closeDialog}
-        onConfirm={(slotId, notify) =>
+        onConfirm={(slotId) =>
           mutate(
             '/api/admin/reservations',
             'POST',
-            { action: 'assign', slotId, email: dialog.email, notify },
-            (r) => (r.moved ? 'Créneau changé.' : 'Créneau attribué.') + (r.notified ? ' Candidat prévenu par e-mail.' : ''),
-            notify,
+            { action: 'assign', slotId, email: dialog.email },
+            (r) => (r.moved ? 'Créneau changé.' : 'Créneau attribué.'),
           )
         }
       />
@@ -235,15 +228,13 @@ export default function AdminDashboard() {
           title="Libérer ce créneau ?"
           confirmLabel="Libérer le créneau"
           danger
-          notifyLabel="Prévenir le candidat par e-mail"
           onClose={closeDialog}
-          onConfirm={(notify) =>
+          onConfirm={() =>
             mutate(
               '/api/admin/reservations',
               'POST',
-              { action: 'release', slotId: slot.id, notify },
-              (r) => 'Créneau libéré.' + (r.notified ? ' Candidat prévenu par e-mail.' : ''),
-              notify,
+              { action: 'release', slotId: slot.id },
+              () => 'Créneau libéré.',
             )
           }
         >
@@ -266,13 +257,12 @@ export default function AdminDashboard() {
           slot={slot}
           bookedName={candidature ? fullName(candidature) : slot.bookedByEmail}
           onClose={closeDialog}
-          onSubmit={(patch, notify) =>
+          onSubmit={(patch) =>
             mutate(
               '/api/admin/slots',
               'PATCH',
-              { id: slot.id, ...patch, notify },
-              (r) => 'Créneau modifié.' + (r.notified ? ' Candidat prévenu par e-mail.' : ''),
-              notify && slot.booked && Boolean(patch.date || patch.time),
+              { id: slot.id, ...patch },
+              () => 'Créneau modifié.',
             )
           }
         />

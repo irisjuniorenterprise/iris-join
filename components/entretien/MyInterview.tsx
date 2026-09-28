@@ -9,7 +9,13 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { Icons } from '@/components/icons/Icons';
 import InterviewCountdown from '@/components/forms/InterviewCountdown';
-import { DEPARTMENT_LABELS, getDayParts, type DepartmentKey } from '@/lib/interview';
+import {
+  DEPARTMENT_LABELS,
+  getDayParts,
+  INTERVIEW_MODE_LABELS,
+  type DepartmentKey,
+  type InterviewMode,
+} from '@/lib/interview';
 import styles from '@/components/forms/InterviewCountdown.module.css';
 
 type BookedSlot = {
@@ -17,6 +23,7 @@ type BookedSlot = {
   date: string;
   time: string;
   department: DepartmentKey;
+  mode: InterviewMode;
 };
 
 type State =
@@ -128,6 +135,10 @@ export default function MyInterview({ verifiedEmail }: Props) {
         <li className={styles.cardItem}>
           <Icons.Briefcase size={18} />
           {department}
+        </li>
+        <li className={styles.cardItem}>
+          <Icons.MapPin size={18} />
+          {INTERVIEW_MODE_LABELS[slot.mode]}
         </li>
       </ul>
 

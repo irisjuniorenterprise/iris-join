@@ -2,7 +2,7 @@
 //
 // Types, helpers et petits composants partagés par l'espace administration.
 import type { CSSProperties } from 'react';
-import { DEPARTMENT_LABELS, type DepartmentKey } from '@/lib/interview';
+import { DEPARTMENT_LABELS, type DepartmentKey, type InterviewMode } from '@/lib/interview';
 import styles from './admin.module.css';
 
 /* ------------------------------------------------------------------ */
@@ -41,6 +41,7 @@ export type AdminSlot = {
   date: string;
   time: string;
   department: DepartmentKey;
+  mode: InterviewMode;
   booked: boolean;
   bookedByEmail?: string;
 };

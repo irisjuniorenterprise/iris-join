@@ -21,7 +21,13 @@ import { useToast } from '@/lib/toast';
 import { Icons } from '@/components/icons/Icons';
 import ScrollDownButton, { type ScrollDownStep } from '@/components/ui/ScrollDownButton';
 import InterviewCountdown from '@/components/forms/InterviewCountdown';
-import { DEPARTMENT_LABELS, getDayParts, type DepartmentKey } from '@/lib/interview';
+import {
+  DEPARTMENT_LABELS,
+  getDayParts,
+  INTERVIEW_MODE_LABELS,
+  type DepartmentKey,
+  type InterviewMode,
+} from '@/lib/interview';
 import styles from './SlotPicker.module.css';
 
 /** Mettre à false pour ne montrer que les créneaux encore libres. */
@@ -32,6 +38,7 @@ type Slot = {
   date: string;
   time: string;
   department: DepartmentKey;
+  mode: InterviewMode;
   booked: boolean;
 };
 
@@ -40,6 +47,7 @@ type BookedSlot = {
   date: string;
   time: string;
   department: DepartmentKey;
+  mode: InterviewMode;
 };
 
 type Status = 'idle' | 'loading' | 'ready' | 'no-candidature' | 'error';
@@ -387,6 +395,10 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
               <Icons.Briefcase size={20} />
               {bookedDept}
             </li>
+            <li className={styles.successItem}>
+              <Icons.MapPin size={20} />
+              {INTERVIEW_MODE_LABELS[bookedSlot.mode]}
+            </li>
           </ul>
 
           <InterviewCountdown date={bookedSlot.date} time={bookedSlot.time} />
@@ -520,6 +532,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
                         </span>
                       )}
                       <span className={styles.slotTime}>{slot.time}</span>
+                      <span className={styles.slotMode}>{INTERVIEW_MODE_LABELS[slot.mode]}</span>
                       <span className={styles.slotState}>{slot.booked ? 'Complet' : 'Libre'}</span>
                     </button>
                   );
@@ -540,6 +553,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
                 <p className={styles.summaryValue}>
                   {selectedParts.long} · {selected.time}
                 </p>
+                <p className={styles.summaryMeta}>{INTERVIEW_MODE_LABELS[selected.mode]}</p>
                 <p className={styles.summaryMeta}>
                   Confirmation envoyée à <strong>{verifiedEmail}</strong>
                 </p>

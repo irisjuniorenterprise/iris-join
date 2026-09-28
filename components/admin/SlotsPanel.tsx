@@ -11,6 +11,7 @@ import {
   DEPARTMENT_KEYS,
   DEPARTMENT_LABELS,
   getDayParts,
+  INTERVIEW_MODE_LABELS,
   type DepartmentKey,
 } from '@/lib/interview';
 import {
@@ -185,6 +186,7 @@ export default function SlotsPanel({ slots, candidatureByEmail, onRequest }: Pro
                         >
                           <div className={styles.cellMain}>
                             <span className={styles.cellDept}>{DEPARTMENT_LABELS[slot.department]}</span>
+                            <span className={styles.cellModeTag}>{INTERVIEW_MODE_LABELS[slot.mode]}</span>
                             <span className={styles.cellState}>
                               {slot.booked
                                 ? candidature

@@ -3,9 +3,14 @@
 //
 // Dialogues de l'espace administration :
 //  - MoveSlotDialog      : attribuer / changer le créneau d'un candidat ;
-//  - SlotFormDialog      : modifier date / heure / département d'un créneau ;
+//  - SlotFormDialog      : modifier date / heure / département / mode d'un créneau ;
 //  - GenerateSlotsDialog : ajouter des créneaux (un seul ou en série) ;
 //  - ConfirmDialog       : confirmation (suppression, annulation d'entretien).
+//
+// Aucun de ces dialogues n'envoie d'e-mail : le seul e-mail lié à
+// l'entretien est le rappel automatique 24h avant (voir lib/email.ts et
+// app/api/cron/reminders/route.ts), donc il n'y a plus de case
+// « prévenir par e-mail » nulle part ici.
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Icons } from '@/components/icons/Icons';
 import {
@@ -13,17 +18,20 @@ import {
   DEPARTMENT_LABELS,
   formatDayLong,
   getDayParts,
+  INTERVIEW_MODES,
+  INTERVIEW_MODE_LABELS,
   type DepartmentKey,
+  type InterviewMode,
 } from '@/lib/interview';
 import Modal from './Modal';
 import type { AdminSlot } from './shared';
 import styles from './admin.module.css';
 
 /* ------------------------------------------------------------------ */
-/* Case "Prévenir le candidat par e-mail"                               */
+/* Case à cocher générique                                              */
 /* ------------------------------------------------------------------ */
 
-function NotifyCheckbox({
+function CheckboxRow({
   checked,
   onChange,
   label,
@@ -41,6 +49,37 @@ function NotifyCheckbox({
 }
 
 /* ------------------------------------------------------------------ */
+/* Sélecteur de mode (présentiel / en ligne)                            */
+/* ------------------------------------------------------------------ */
+
+function ModeSelect({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: InterviewMode;
+  onChange: (value: InterviewMode) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={styles.formField}>
+      <span>Mode</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as InterviewMode)}
+        disabled={disabled}
+      >
+        {INTERVIEW_MODES.map((mode) => (
+          <option key={mode} value={mode}>
+            {INTERVIEW_MODE_LABELS[mode]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Attribuer / changer le créneau d'un candidat                         */
 /* ------------------------------------------------------------------ */
 
@@ -51,7 +90,7 @@ type MoveSlotDialogProps = {
   currentSlot: AdminSlot | null;
   slots: AdminSlot[];
   onClose: () => void;
-  onConfirm: (slotId: string, notify: boolean) => Promise<boolean>;
+  onConfirm: (slotId: string) => Promise<boolean>;
 };
 
 export function MoveSlotDialog({
@@ -64,7 +103,6 @@ export function MoveSlotDialog({
   onConfirm,
 }: MoveSlotDialogProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [notify, setNotify] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // Seuls les créneaux LIBRES du département du candidat sont proposés.
@@ -83,7 +121,7 @@ export function MoveSlotDialog({
     if (!selectedId) return;
     setBusy(true);
     try {
-      await onConfirm(selectedId, notify);
+      await onConfirm(selectedId);
     } finally {
       setBusy(false);
     }
@@ -151,6 +189,7 @@ export function MoveSlotDialog({
                       disabled={busy}
                     >
                       {slot.time}
+                      <span className={styles.chipMeta}>{INTERVIEW_MODE_LABELS[slot.mode]}</span>
                     </button>
                   ))}
                 </div>
@@ -161,14 +200,9 @@ export function MoveSlotDialog({
           {selected && (
             <div className={styles.selectionBox} role="status">
               Nouveau créneau : <strong>{formatDayLong(selected.date)} à {selected.time}</strong>
+              {' '}({INTERVIEW_MODE_LABELS[selected.mode]})
             </div>
           )}
-
-          <NotifyCheckbox
-            checked={notify}
-            onChange={setNotify}
-            label="Prévenir le candidat par e-mail"
-          />
         </>
       )}
     </Modal>
@@ -184,21 +218,23 @@ type SlotFormDialogProps = {
   /** Nom du candidat si le créneau est réservé. */
   bookedName?: string;
   onClose: () => void;
-  onSubmit: (
-    patch: { date?: string; time?: string; department?: DepartmentKey },
-    notify: boolean,
-  ) => Promise<boolean>;
+  onSubmit: (patch: {
+    date?: string;
+    time?: string;
+    department?: DepartmentKey;
+    mode?: InterviewMode;
+  }) => Promise<boolean>;
 };
 
 export function SlotFormDialog({ slot, bookedName, onClose, onSubmit }: SlotFormDialogProps) {
   const [date, setDate] = useState(slot.date);
   const [time, setTime] = useState(slot.time);
   const [department, setDepartment] = useState<DepartmentKey>(slot.department);
-  const [notify, setNotify] = useState(true);
+  const [mode, setMode] = useState<InterviewMode>(slot.mode);
   const [busy, setBusy] = useState(false);
 
-  const changed = date !== slot.date || time !== slot.time || department !== slot.department;
-  const timeChanged = date !== slot.date || time !== slot.time;
+  const changed =
+    date !== slot.date || time !== slot.time || department !== slot.department || mode !== slot.mode;
   const valid = Boolean(date) && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
 
   async function submit(e: FormEvent) {
@@ -206,14 +242,12 @@ export function SlotFormDialog({ slot, bookedName, onClose, onSubmit }: SlotForm
     if (!changed || !valid) return;
     setBusy(true);
     try {
-      await onSubmit(
-        {
-          ...(date !== slot.date ? { date } : {}),
-          ...(time !== slot.time ? { time } : {}),
-          ...(department !== slot.department ? { department } : {}),
-        },
-        notify,
-      );
+      await onSubmit({
+        ...(date !== slot.date ? { date } : {}),
+        ...(time !== slot.time ? { time } : {}),
+        ...(department !== slot.department ? { department } : {}),
+        ...(mode !== slot.mode ? { mode } : {}),
+      });
     } finally {
       setBusy(false);
     }
@@ -232,8 +266,9 @@ export function SlotFormDialog({ slot, bookedName, onClose, onSubmit }: SlotForm
             <Icons.Info size={18} />
             <span>
               Ce créneau est réservé{bookedName ? <> par <strong>{bookedName}</strong></> : null}.
-              Changer le jour ou l&rsquo;heure déplace son entretien ; le département ne peut pas être
-              modifié (utilisez « Changer le créneau » pour le candidat).
+              Changer le jour ou l&rsquo;heure déplace son entretien (le rappel automatique suivra le
+              nouvel horaire) ; le département ne peut pas être modifié (utilisez « Changer le créneau »
+              pour le candidat).
             </span>
           </div>
         )}
@@ -249,28 +284,23 @@ export function SlotFormDialog({ slot, bookedName, onClose, onSubmit }: SlotForm
           </label>
         </div>
 
-        <label className={styles.formField}>
-          <span>Département</span>
-          <select
-            value={department}
-            onChange={(e) => setDepartment(e.target.value as DepartmentKey)}
-            disabled={slot.booked}
-          >
-            {DEPARTMENT_KEYS.map((key) => (
-              <option key={key} value={key}>
-                {DEPARTMENT_LABELS[key]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {slot.booked && timeChanged && (
-          <NotifyCheckbox
-            checked={notify}
-            onChange={setNotify}
-            label="Prévenir le candidat par e-mail"
-          />
-        )}
+        <div className={styles.formRow}>
+          <label className={styles.formField}>
+            <span>Département</span>
+            <select
+              value={department}
+              onChange={(e) => setDepartment(e.target.value as DepartmentKey)}
+              disabled={slot.booked}
+            >
+              {DEPARTMENT_KEYS.map((key) => (
+                <option key={key} value={key}>
+                  {DEPARTMENT_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ModeSelect value={mode} onChange={setMode} />
+        </div>
 
         <div className={styles.formActions}>
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={busy}>
@@ -317,6 +347,7 @@ type GenerateSlotsDialogProps = {
     dates: string[];
     times: string[];
     departments: DepartmentKey[];
+    mode: InterviewMode;
   }) => Promise<boolean>;
 };
 
@@ -329,6 +360,7 @@ export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlot
   const [departments, setDepartments] = useState<DepartmentKey[]>(
     initial?.department ? [initial.department] : [...DEPARTMENT_KEYS],
   );
+  const [mode, setMode] = useState<InterviewMode>('presentiel');
   const [busy, setBusy] = useState(false);
 
   const dates = useMemo(() => expandDates(from, to, skipWeekends), [from, to, skipWeekends]);
@@ -351,7 +383,7 @@ export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlot
     if (!valid) return;
     setBusy(true);
     try {
-      await onSubmit({ dates, times, departments });
+      await onSubmit({ dates, times, departments, mode });
     } finally {
       setBusy(false);
     }
@@ -360,7 +392,7 @@ export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlot
   return (
     <Modal
       title="Ajouter des créneaux"
-      subtitle="Un créneau est créé pour chaque jour × heure × département. Les doublons sont ignorés."
+      subtitle="Un créneau est créé pour chaque jour × heure × département, dans le mode choisi ci-dessous. Les doublons sont ignorés."
       onClose={onClose}
       busy={busy}
       wide
@@ -378,7 +410,7 @@ export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlot
         </div>
 
         {to && to > from && (
-          <NotifyCheckbox
+          <CheckboxRow
             checked={skipWeekends}
             onChange={setSkipWeekends}
             label="Ignorer les week-ends"
@@ -446,6 +478,26 @@ export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlot
           </div>
         </fieldset>
 
+        <fieldset className={styles.fieldsetPlain}>
+          <legend>Mode de l&rsquo;entretien</legend>
+          <div className={styles.checkGrid}>
+            {INTERVIEW_MODES.map((key) => (
+              <label key={key} className={styles.checkRow}>
+                <input
+                  type="radio"
+                  name="interview-mode"
+                  checked={mode === key}
+                  onChange={() => setMode(key)}
+                />
+                <span>{INTERVIEW_MODE_LABELS[key]}</span>
+              </label>
+            ))}
+          </div>
+          <p className={styles.fieldHint}>
+            Tous les créneaux créés ici auront ce mode ; modifiez-le au cas par cas ensuite si besoin.
+          </p>
+        </fieldset>
+
         <div className={styles.selectionBox} role="status">
           {tooManyDays ? (
             <>Période trop longue : {MAX_DAYS} jours maximum à la fois.</>
@@ -453,7 +505,8 @@ export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlot
             <>
               <strong>{total}</strong> créneau{total > 1 ? 'x' : ''} · {dates.length} jour
               {dates.length > 1 ? 's' : ''}
-              {dates.length === 1 ? <> ({getDayParts(dates[0]).long})</> : null}
+              {dates.length === 1 ? <> ({getDayParts(dates[0]).long})</> : null} ·{' '}
+              {INTERVIEW_MODE_LABELS[mode]}
             </>
           ) : (
             <>Choisissez au moins un jour, une heure et un département.</>
@@ -482,7 +535,10 @@ type ConfirmDialogProps = {
   children: ReactNode;
   confirmLabel: string;
   danger?: boolean;
-  /** Si fourni, affiche la case « prévenir par e-mail » avec ce libellé. */
+  /**
+   * Si fourni, affiche une case à cocher avec ce libellé (ex. l'envoi de
+   * l'e-mail de résultat de délibération — sans rapport avec l'entretien).
+   */
   notifyLabel?: string;
   onClose: () => void;
   onConfirm: (notify: boolean) => Promise<boolean>;
@@ -531,7 +587,6 @@ export function ConfirmDialog({
       }
     >
       <div className={styles.confirmText}>{children}</div>
-      {notifyLabel && <NotifyCheckbox checked={notify} onChange={setNotify} label={notifyLabel} />}
     </Modal>
   );
 }

@@ -313,6 +313,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+.slotMode {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.slot[aria-pressed='true'] .slotMode {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.slot:disabled .slotMode {
+  color: var(--text-muted);
+}
+
 .slotState {
   font-size: 0.66rem;
   font-weight: 600;

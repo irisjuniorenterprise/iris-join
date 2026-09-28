@@ -4,11 +4,13 @@
 // serveur uniquement (routes API) — ne jamais importer depuis un
 // composant client (nodemailer ne fonctionne pas dans le navigateur).
 //
-// Toutes les fonctions échouent silencieusement (log + return) plutôt que
-// de lever une exception : un email de confirmation qui échoue ne doit
-// jamais faire échouer la candidature ou la réservation elle-même (déjà
-// enregistrées en base à ce stade). On log pour pouvoir suivre le taux
-// d'échec, mais la réponse HTTP renvoyée à l'utilisateur reste un succès.
+// Les e-mails « candidature reçue » et « notification RH » échouent
+// silencieusement (log + return) : un échec d'envoi ne doit jamais faire
+// échouer la candidature déjà enregistrée. Le rappel d'entretien et les
+// e-mails de résultat renvoient au contraire un booléen (l'appelant doit
+// savoir s'ils sont partis).
+//
+// E-mails d'entretien : UNIQUEMENT le rappel 24 h avant (sendInterviewReminder).
 
 import nodemailer, { type Transporter } from 'nodemailer';
 import { SITE_NAME, SITE_URL } from './config';
@@ -138,85 +140,36 @@ export async function sendCandidatureConfirmation(to: string, nomPrenom: string,
   });
 }
 
-export async function sendReservationConfirmation(
-  to: string,
-  dateLabel: string,
-  time: string,
-  department: string,
-) {
-  await sendEmail({
-    to,
-    subject: `Entretien confirmé — ${dateLabel} à ${time}`,
-    html: emailShell(
-      'Entretien confirmé 📅',
-      `
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6;">Votre entretien est confirmé :</p>
-      <div style="background: #f6fafd; border: 1px solid rgba(26,57,105,0.12); border-radius: 12px; padding: 16px 20px; margin: 16px 0;">
-        <p style="font-family: ${EMAIL_FONT}; margin: 4px 0; color: ${EMAIL_TEXT_COLOR}; font-weight: 700;">${dateLabel} à ${time}</p>
-        <p style="font-family: ${EMAIL_FONT}; margin: 4px 0; color: ${EMAIL_TEXT_COLOR}; font-size: 14px;">Département : ${department}</p>
-      </div>
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6; font-size: 14px;">
-        Merci d'arriver 5 minutes en avance. En cas d'empêchement, contactez l'équipe IRIS JE au plus vite.
-      </p>
-      `,
-    ),
-  });
-}
-
 /**
- * Envoyé par l'administration quand le créneau d'un candidat est modifié
- * (changement demandé par e-mail, ou déplacement d'un créneau réservé).
+ * Rappel d'entretien — le SEUL e-mail lié à l'entretien : envoyé une fois,
+ * 24 h avant l'heure du créneau (voir app/api/cron/reminders/route.ts).
+ * Aucun e-mail n'est envoyé à la réservation, au changement de créneau ni
+ * à l'annulation. Police Verdana, texte bleu de la charte (#1a3969).
+ * Renvoie true si l'e-mail est bien parti (le cron réessaiera sinon).
  */
-export async function sendReservationChanged(
+export async function sendInterviewReminder(
   to: string,
+  nomPrenom: string,
   dateLabel: string,
   time: string,
-  department: string,
-  previous?: { dateLabel: string; time: string },
-) {
-  await sendEmail({
-    to,
-    subject: `Entretien mis à jour — ${dateLabel} à ${time}`,
-    html: emailShell(
-      'Entretien mis à jour 📅',
-      `
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6;">Votre créneau d'entretien a été mis à jour par l'équipe IRIS JE.</p>
-      ${
-        previous
-          ? `<p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6; font-size: 14px; opacity: 0.75;">Ancien créneau : <span style="text-decoration: line-through;">${previous.dateLabel} à ${previous.time}</span></p>`
-          : ''
-      }
-      <div style="background: #f6fafd; border: 1px solid rgba(26,57,105,0.12); border-radius: 12px; padding: 16px 20px; margin: 16px 0;">
-        <p style="font-family: ${EMAIL_FONT}; margin: 4px 0; color: ${EMAIL_TEXT_COLOR}; font-weight: 700;">Nouveau créneau : ${dateLabel} à ${time}</p>
-        <p style="font-family: ${EMAIL_FONT}; margin: 4px 0; color: ${EMAIL_TEXT_COLOR}; font-size: 14px;">Département : ${department}</p>
-      </div>
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6; font-size: 14px;">
-        Merci d'arriver 5 minutes en avance. En cas d'empêchement, contactez l'équipe IRIS JE au plus vite.
-      </p>
-      `,
-    ),
-  });
-}
+): Promise<boolean> {
+  const style = `font-family: ${EMAIL_FONT}; color: ${RESULT_TEXT_COLOR}; font-size: 14px; line-height: 1.7; margin: 0 0 16px;`;
+  const name = escapeHtml(nomPrenom.trim());
 
-/** Envoyé par l'administration quand une réservation est annulée. */
-export async function sendReservationCancelled(to: string, dateLabel: string, time: string) {
-  await sendEmail({
+  return sendEmailStrict({
     to,
-    subject: `Entretien annulé — ${dateLabel} à ${time}`,
-    html: emailShell(
-      'Entretien annulé',
-      `
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6;">
-        Votre entretien prévu le <strong>${dateLabel} à ${time}</strong> a été annulé par l'équipe IRIS JE.
-      </p>
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6;">
-        Vous pouvez réserver un nouveau créneau depuis votre espace :
-      </p>
-      <a href="${SITE_URL}/entretien" style="display: inline-block; margin-top: 8px; padding: 12px 24px; background: #ff6633; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; font-size: 14px; font-family: ${EMAIL_FONT};">
-        Réserver un créneau
-      </a>
-      `,
-    ),
+    subject: 'Rappel de votre entretien — IRIS Junior Entreprise',
+    html: `
+  <div style="font-family: ${EMAIL_FONT}; color: ${RESULT_TEXT_COLOR}; padding: 8px 0;">
+    <p style="${style}">${name},</p>
+    <p style="${style}">
+      Nous vous rappelons que votre entretien dans le cadre de votre candidature à IRIS Junior Entreprise
+      est prévu le ${escapeHtml(dateLabel)} à ${escapeHtml(time)}.
+    </p>
+    <p style="${style}">
+      Nous vous remercions pour votre disponibilité et vous souhaitons une bonne préparation.
+    </p>
+  </div>`,
   });
 }
 

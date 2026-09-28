@@ -3,8 +3,6 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { bookSlot, getBookingForEmail, getCandidateDepartment } from '@/lib/slots-store';
 import { getVerifiedEmail, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
-import { sendReservationConfirmation } from '@/lib/email';
-import { DEPARTMENT_LABELS, formatDayLong } from '@/lib/interview';
 import { getServiceWindowStates } from '@/lib/settings-store';
 import { formatServiceDateTime } from '@/lib/service-window';
 
@@ -36,7 +34,13 @@ export async function GET(request: Request) {
     if (!slot) return NextResponse.json({ slot: null });
 
     return NextResponse.json({
-      slot: { id: slot.id, date: slot.date, time: slot.time, department: slot.department },
+      slot: {
+        id: slot.id,
+        date: slot.date,
+        time: slot.time,
+        department: slot.department,
+        mode: slot.mode,
+      },
     });
   } catch (err) {
     console.error('[api/reservation] échec de la lecture de la réservation', err);
@@ -129,14 +133,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // L'échec d'envoi d'email ne doit jamais faire échouer une réservation
-    // déjà enregistrée en base (voir lib/email.ts : échoue silencieusement).
-    await sendReservationConfirmation(
-      email,
-      formatDayLong(outcome.slot.date),
-      outcome.slot.time,
-      DEPARTMENT_LABELS[outcome.slot.department],
-    );
+    // Aucun e-mail à la réservation : le candidat reçoit uniquement le
+    // rappel envoyé 24 h avant l'entretien (voir app/api/cron/reminders).
 
     return NextResponse.json({
       ok: true,
@@ -145,6 +143,7 @@ export async function POST(request: Request) {
         date: outcome.slot.date,
         time: outcome.slot.time,
         department: outcome.slot.department,
+        mode: outcome.slot.mode,
       },
     });
   } catch (err) {

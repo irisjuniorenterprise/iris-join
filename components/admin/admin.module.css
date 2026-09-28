@@ -697,6 +697,15 @@
   display: none;
 }
 
+/* Mode (présentiel / en ligne) : toujours visible, desktop et mobile. */
+.cellModeTag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary, var(--text-primary));
+  opacity: 0.75;
+}
+
 .cellAdd {
   padding: 0.3rem 0.7rem;
   border: 1px dashed var(--border);
@@ -770,6 +779,14 @@
 
 .chip:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.chipMeta {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  opacity: 0.7;
 }
 
 .chip[aria-pressed='true'] {

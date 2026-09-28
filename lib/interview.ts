@@ -48,6 +48,39 @@ export function departmentStoredValues(key: DepartmentKey): string[] {
 }
 
 /* ------------------------------------------------------------------ */
+/* Mode de l'entretien (présentiel / en ligne) — choisi par l'admin      */
+/* ------------------------------------------------------------------ */
+
+export const INTERVIEW_MODES = ['presentiel', 'en-ligne'] as const;
+
+export type InterviewMode = (typeof INTERVIEW_MODES)[number];
+
+/** Mode des créneaux existants qui n'ont pas encore de mode enregistré. */
+export const DEFAULT_INTERVIEW_MODE: InterviewMode = 'presentiel';
+
+export const INTERVIEW_MODE_LABELS: Record<InterviewMode, string> = {
+  presentiel: 'Présentiel',
+  'en-ligne': 'En ligne',
+};
+
+/** Convertit une valeur stockée en mode valide (présentiel par défaut). */
+export function normalizeInterviewMode(raw: unknown): InterviewMode {
+  if (typeof raw !== 'string') return DEFAULT_INTERVIEW_MODE;
+  const clean = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
+  return clean === 'en-ligne' || clean === 'enligne' || clean === 'online'
+    ? 'en-ligne'
+    : DEFAULT_INTERVIEW_MODE;
+}
+
+/** Le rappel part quand l'entretien est dans moins de 24 h. */
+export const REMINDER_LEAD_HOURS = 24;
+
+/* ------------------------------------------------------------------ */
 /* Dates                                                                */
 /* ------------------------------------------------------------------ */
 

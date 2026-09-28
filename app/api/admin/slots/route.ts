@@ -1,16 +1,17 @@
 // app/api/admin/slots/route.ts
 //
 // Gestion des créneaux par l'administration :
-//  - POST   : crée des créneaux (jours × heures × départements), sans doublon ;
-//  - PATCH  : modifie date / heure / département d'un créneau ;
+//  - POST   : crée des créneaux (jours × heures × départements) avec leur
+//             mode (présentiel / en ligne), sans doublon ;
+//  - PATCH  : modifie date / heure / département / mode d'un créneau
+//             (aucun e-mail : le rappel 24 h avant suit le nouvel horaire) ;
 //  - DELETE : supprime un créneau libre.
 // Réservé aux e-mails listés dans ADMIN_EMAILS.
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { denyResponse, requireAdmin } from '@/lib/admin-auth';
 import { createSlots, deleteSlot, updateSlot } from '@/lib/slots-store';
-import { DEPARTMENT_KEYS, DEPARTMENT_LABELS, formatDayLong } from '@/lib/interview';
-import { isEmailConfigured, sendReservationChanged } from '@/lib/email';
+import { DEPARTMENT_KEYS, INTERVIEW_MODES } from '@/lib/interview';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,7 @@ const createSchema = z.object({
   dates: z.array(dateSchema).min(1).max(31),
   times: z.array(timeSchema).min(1).max(30),
   departments: z.array(z.enum(DEPARTMENT_KEYS)).min(1),
+  mode: z.enum(INTERVIEW_MODES),
 });
 
 const patchSchema = z
@@ -35,9 +37,9 @@ const patchSchema = z
     date: dateSchema.optional(),
     time: timeSchema.optional(),
     department: z.enum(DEPARTMENT_KEYS).optional(),
-    notify: z.boolean().optional(),
+    mode: z.enum(INTERVIEW_MODES).optional(),
   })
-  .refine((v) => v.date || v.time || v.department, 'Aucune modification.');
+  .refine((v) => v.date || v.time || v.department || v.mode, 'Aucune modification.');
 
 const deleteSchema = z.object({ id: idSchema });
 
@@ -52,12 +54,12 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return fail('Données invalides.', 400);
 
-  const { dates, times, departments } = parsed.data;
+  const { dates, times, departments, mode } = parsed.data;
   const items = [];
   for (const date of new Set(dates)) {
     for (const time of new Set(times)) {
       for (const department of new Set(departments)) {
-        items.push({ date, time, department });
+        items.push({ date, time, department, mode });
       }
     }
   }
@@ -79,7 +81,7 @@ export async function PATCH(request: Request) {
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return fail('Données invalides.', 400);
 
-  const { id, notify, ...patch } = parsed.data;
+  const { id, ...patch } = parsed.data;
 
   try {
     const outcome = await updateSlot(id, patch);
@@ -93,25 +95,9 @@ export async function PATCH(request: Request) {
       return fail(messages[outcome.reason], outcome.reason === 'not-found' ? 404 : 409);
     }
 
-    // Créneau réservé déplacé dans le temps : on prévient le candidat si demandé.
-    const { slot, previous } = outcome;
-    const timeChanged = slot.date !== previous.date || slot.time !== previous.time;
-    let notified = false;
-    if (notify && timeChanged && slot.booked && slot.bookedByEmail && isEmailConfigured()) {
-      await sendReservationChanged(
-        slot.bookedByEmail,
-        formatDayLong(slot.date),
-        slot.time,
-        DEPARTMENT_LABELS[slot.department],
-        { dateLabel: formatDayLong(previous.date), time: previous.time },
-      );
-      notified = true;
-    }
-
-    return NextResponse.json(
-      { ok: true, slot, notified, emailConfigured: isEmailConfigured() },
-      { headers: NO_STORE },
-    );
+    // Aucun e-mail ici : si le créneau réservé change d'horaire, le rappel
+    // 24 h avant est simplement (re)programmé pour le nouvel horaire.
+    return NextResponse.json({ ok: true, slot: outcome.slot }, { headers: NO_STORE });
   } catch (err) {
     console.error('[api/admin/slots] modification', err);
     return fail('Erreur serveur.', 500);

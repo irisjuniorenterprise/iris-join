@@ -5,18 +5,13 @@
 //                       libre de SON département ; l'ancien créneau est
 //                       libéré dans la même transaction ;
 //  - action "release" : libère un créneau réservé (annulation).
+// Aucun e-mail n'est envoyé ici : le candidat reçoit uniquement le rappel
+// 24 h avant son entretien (nouveau créneau inclus, voir /api/cron/reminders).
 // Réservé aux e-mails listés dans ADMIN_EMAILS.
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { denyResponse, requireAdmin } from '@/lib/admin-auth';
 import { assignSlot, getCandidateDepartment, releaseSlot } from '@/lib/slots-store';
-import { DEPARTMENT_LABELS, formatDayLong } from '@/lib/interview';
-import {
-  isEmailConfigured,
-  sendReservationCancelled,
-  sendReservationChanged,
-  sendReservationConfirmation,
-} from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,12 +24,10 @@ const bodySchema = z.discriminatedUnion('action', [
     action: z.literal('assign'),
     slotId: idSchema,
     email: z.string().email().max(320),
-    notify: z.boolean().optional(),
   }),
   z.object({
     action: z.literal('release'),
     slotId: idSchema,
-    notify: z.boolean().optional(),
   }),
 ]);
 
@@ -50,7 +43,6 @@ export async function POST(request: Request) {
   if (!parsed.success) return fail('Données invalides.', 400);
 
   const body = parsed.data;
-  const emailConfigured = isEmailConfigured();
 
   try {
     if (body.action === 'assign') {
@@ -73,24 +65,8 @@ export async function POST(request: Request) {
         return fail(messages[outcome.reason], outcome.reason === 'not-found' ? 404 : 409);
       }
 
-      const { slot, previous } = outcome;
-      let notified = false;
-      if (body.notify && emailConfigured) {
-        const dateLabel = formatDayLong(slot.date);
-        const department = DEPARTMENT_LABELS[slot.department];
-        if (previous) {
-          await sendReservationChanged(body.email, dateLabel, slot.time, department, {
-            dateLabel: formatDayLong(previous.date),
-            time: previous.time,
-          });
-        } else {
-          await sendReservationConfirmation(body.email, dateLabel, slot.time, department);
-        }
-        notified = true;
-      }
-
       return NextResponse.json(
-        { ok: true, moved: Boolean(previous), notified, emailConfigured },
+        { ok: true, moved: Boolean(outcome.previous) },
         { headers: NO_STORE },
       );
     }
@@ -103,13 +79,7 @@ export async function POST(request: Request) {
         : fail("Ce créneau n'est pas réservé.", 409);
     }
 
-    let notified = false;
-    if (body.notify && emailConfigured) {
-      await sendReservationCancelled(outcome.email, formatDayLong(outcome.slot.date), outcome.slot.time);
-      notified = true;
-    }
-
-    return NextResponse.json({ ok: true, notified, emailConfigured }, { headers: NO_STORE });
+    return NextResponse.json({ ok: true }, { headers: NO_STORE });
   } catch (err) {
     console.error('[api/admin/reservations] échec', err);
     return fail('Erreur serveur.', 500);

@@ -6,7 +6,13 @@
 // propose les créneaux libres du département du candidat.
 import { useMemo, useState } from 'react';
 import { Icons } from '@/components/icons/Icons';
-import { DEPARTMENT_KEYS, DEPARTMENT_LABELS, formatDayLong, type DepartmentKey } from '@/lib/interview';
+import {
+  DEPARTMENT_KEYS,
+  DEPARTMENT_LABELS,
+  formatDayLong,
+  INTERVIEW_MODE_LABELS,
+  type DepartmentKey,
+} from '@/lib/interview';
 import {
   DeptBadge,
   emailKey,
@@ -111,6 +117,7 @@ export default function InterviewsPanel({ slots, candidatureByEmail, onRequest }
                 <thead>
                   <tr>
                     <th scope="col">Heure</th>
+                    <th scope="col">Mode</th>
                     <th scope="col">Département</th>
                     <th scope="col">Candidat</th>
                     <th scope="col">Contact</th>
@@ -121,6 +128,7 @@ export default function InterviewsPanel({ slots, candidatureByEmail, onRequest }
                   {group.rows.map(({ slot, candidature }) => (
                     <tr key={slot.id}>
                       <td className={styles.timeCell} data-label="Heure">{slot.time}</td>
+                      <td data-label="Mode">{INTERVIEW_MODE_LABELS[slot.mode]}</td>
                       <td data-label="Département">
                         <DeptBadge department={slot.department} />
                       </td>
