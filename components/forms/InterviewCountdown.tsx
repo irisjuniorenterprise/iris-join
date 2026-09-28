@@ -125,7 +125,7 @@ export default function InterviewCountdown({ date, time }: Props) {
           </span>
           <p className={styles.kicker}>Entretien terminé</p>
           <p className={styles.note}>
-            Votre créneau de {startLabel} à {endLabel} est écoulé. Merci pour votre participation :
+            Votre créneau de {startLabel} à {endLabel+" "} est écoulé. Merci pour votre participation :
             l&rsquo;équipe IRIS JE reviendra vers vous prochainement.
           </p>
         </div>

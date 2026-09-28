@@ -1,29 +1,33 @@
 // components/ui/PageHero.tsx
 //
-// Hero des pages candidature / entretien.
+// Hero des pages candidature / entretien / résultats (et de l'admin).
 // Le parcours de recrutement (candidature → entretien → réponse) est le
 // fil conducteur : l'étape de la page courante est mise en avant, les
-// deux premières étapes restent cliquables pour naviguer entre les pages.
+// autres étapes restent cliquables pour naviguer entre les pages.
+// Sans `current` (page admin), le parcours n'est pas affiché.
+import type { ComponentType, ReactNode } from 'react';
 import Link from 'next/link';
 import styles from './PageHero.module.css';
 
-type CurrentStep = 'candidature' | 'entretien';
+type CurrentStep = 'candidature' | 'entretien' | 'reponse';
 
 type PageHeroProps = {
-  /** Étape du parcours correspondant à la page affichée. */
-  current: CurrentStep;
-  title: string;
+  /** Étape du parcours correspondant à la page affichée (absent = pas de parcours). */
+  current?: CurrentStep;
+  title: ReactNode;
   description: string;
+  /** Icône facultative affichée au-dessus du titre (ex. page admin). */
+  icon?: ComponentType<{ size?: number }>;
 };
 
 const STEPS = [
   { key: 'candidature', label: 'Candidature', hint: 'Formulaire en ligne', href: '/candidature' },
   { key: 'entretien', label: 'Entretien', hint: 'Choix du créneau', href: '/entretien' },
-  { key: 'reponse', label: 'Réponse', hint: "Décision de l'équipe", href: null },
+  { key: 'reponse', label: 'Réponse', hint: "Décision de l'équipe", href: '/resultats' },
 ] as const;
 
-export default function PageHero({ current, title, description }: PageHeroProps) {
-  const currentIndex = STEPS.findIndex((step) => step.key === current);
+export default function PageHero({ current, title, description, icon: Icon }: PageHeroProps) {
+  const currentIndex = current ? STEPS.findIndex((step) => step.key === current) : -1;
 
   return (
     <section className={styles.hero}>
@@ -38,59 +42,69 @@ export default function PageHero({ current, title, description }: PageHeroProps)
 
       <div className="container">
         <div className={styles.body}>
+          {Icon && (
+            <span
+              aria-hidden="true"
+              style={{ display: 'inline-flex', marginBottom: '1rem', color: 'var(--accent, #5ab8de)' }}
+            >
+              <Icon size={32} />
+            </span>
+          )}
           <h1 className={styles.title}>{title}</h1>
           <p className={styles.lead}>{description}</p>
         </div>
       </div>
 
-      <div className={styles.railBar}>
-        <div className="container">
-          <nav aria-label="Parcours de recrutement">
-            <ol className={styles.rail}>
-              {STEPS.map((step, index) => {
-                const state = index === currentIndex ? 'current' : index < currentIndex ? 'done' : 'next';
-                const content = (
-                  <>
-                    <span className={styles.track}>
-                      <span className={styles.node}>{index + 1}</span>
-                      {index < STEPS.length - 1 && (
-                        <span className={styles.line} aria-hidden="true">
-                          <span className={styles.lineFill} />
-                        </span>
-                      )}
-                    </span>
-                    <span className={styles.labels}>
-                      <span className={styles.label}>{step.label}</span>
-                      <span className={styles.hint}>{step.hint}</span>
-                    </span>
-                  </>
-                );
-
-                return (
-                  <li
-                    key={step.key}
-                    className={styles.item}
-                    data-state={state}
-                    data-filled={index < currentIndex ? 'true' : 'false'}
-                  >
-                    {state === 'current' ? (
-                      <span className={styles.step} aria-current="step">
-                        {content}
+      {current && (
+        <div className={styles.railBar}>
+          <div className="container">
+            <nav aria-label="Parcours de recrutement">
+              <ol className={styles.rail}>
+                {STEPS.map((step, index) => {
+                  const state = index === currentIndex ? 'current' : index < currentIndex ? 'done' : 'next';
+                  const content = (
+                    <>
+                      <span className={styles.track}>
+                        <span className={styles.node}>{index + 1}</span>
+                        {index < STEPS.length - 1 && (
+                          <span className={styles.line} aria-hidden="true">
+                            <span className={styles.lineFill} />
+                          </span>
+                        )}
                       </span>
-                    ) : step.href ? (
-                      <Link href={step.href} className={styles.step}>
-                        {content}
-                      </Link>
-                    ) : (
-                      <span className={styles.step}>{content}</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ol>
-          </nav>
+                      <span className={styles.labels}>
+                        <span className={styles.label}>{step.label}</span>
+                        <span className={styles.hint}>{step.hint}</span>
+                      </span>
+                    </>
+                  );
+
+                  return (
+                    <li
+                      key={step.key}
+                      className={styles.item}
+                      data-state={state}
+                      data-filled={index < currentIndex ? 'true' : 'false'}
+                    >
+                      {state === 'current' ? (
+                        <span className={styles.step} aria-current="step">
+                          {content}
+                        </span>
+                      ) : step.href ? (
+                        <Link href={step.href} className={styles.step}>
+                          {content}
+                        </Link>
+                      ) : (
+                        <span className={styles.step}>{content}</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </nav>
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }

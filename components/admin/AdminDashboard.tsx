@@ -2,7 +2,7 @@
 // components/admin/AdminDashboard.tsx
 //
 // Espace administration : connexion Google, puis vue d'ensemble
-// (candidatures, entretiens réservés, gestion des créneaux). L'autorisation
+// (candidatures, entretiens réservés, délibération, gestion des créneaux). L'autorisation
 // est vérifiée CÔTÉ SERVEUR à chaque appel (voir lib/admin-auth.ts) : ce
 // composant ne fait qu'afficher ce que l'API accepte de renvoyer.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -17,6 +17,7 @@ import {
 } from '@/lib/interview';
 import CandidaturesPanel from './CandidaturesPanel';
 import InterviewsPanel from './InterviewsPanel';
+import DeliberationPanel from './DeliberationPanel';
 import SlotsPanel from './SlotsPanel';
 import SettingsPanel from './SettingsPanel';
 import type { ServiceKey, ServiceWindow, ServiceWindows } from '@/lib/service-window';
@@ -33,7 +34,7 @@ import {
 } from './shared';
 import styles from './admin.module.css';
 
-type Tab = 'candidatures' | 'interviews' | 'slots' | 'settings';
+type Tab = 'candidatures' | 'interviews' | 'deliberation' | 'slots' | 'settings';
 type Status = 'idle' | 'loading' | 'ready' | 'forbidden' | 'error';
 
 type MutationResult = {
@@ -394,6 +395,7 @@ export default function AdminDashboard() {
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'candidatures', label: 'Candidatures', count: stats.total },
     { id: 'interviews', label: 'Entretiens', count: stats.booked },
+    { id: 'deliberation', label: 'Délibération' },
     { id: 'slots', label: 'Créneaux', count: data.slots.length },
     { id: 'settings', label: 'Réglages' },
   ];
@@ -477,6 +479,9 @@ export default function AdminDashboard() {
         )}
         {tab === 'interviews' && (
           <InterviewsPanel slots={data.slots} candidatureByEmail={candidatureByEmail} onRequest={setDialog} />
+        )}
+        {tab === 'deliberation' && (
+          <DeliberationPanel candidatures={data.candidatures} bookingByEmail={bookingByEmail} call={call} />
         )}
         {tab === 'slots' && (
           <SlotsPanel slots={data.slots} candidatureByEmail={candidatureByEmail} onRequest={setDialog} />

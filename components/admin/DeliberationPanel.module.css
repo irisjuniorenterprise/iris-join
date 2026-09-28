@@ -1,0 +1,263 @@
+/* components/admin/DeliberationPanel.module.css
+ *
+ * Styles propres à l'onglet « Délibération ». Tout ce qui existe déjà dans
+ * admin.module.css (panel, toolbar, table, status, chips, checkRow…) est
+ * réutilisé tel quel depuis le composant : ce fichier ne contient que ce
+ * qui est spécifique (résumé, barre de sélection, progression, zone de texte).
+ */
+
+/* ------------------------------ Résumé ------------------------------ */
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 0.75rem;
+}
+
+.sumCard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md, 16px);
+  background: var(--surface-card-alt, #f6fafd);
+  border: 1px solid var(--border, #e5e7eb);
+}
+
+.sumValue {
+  font-family: var(--font-display, inherit);
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary, #1a3969);
+}
+
+.sumLabel {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-secondary, #6b7280);
+}
+
+.sumOk .sumValue {
+  color: #15803d;
+}
+.sumWarn .sumValue {
+  color: #b45309;
+}
+.sumDanger .sumValue {
+  color: #b91c1c;
+}
+
+/* --------------------------- Actions globales --------------------------- */
+
+.globalActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.globalHint {
+  flex: 1 1 220px;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-secondary, #6b7280);
+}
+
+/* ----------------------- Progression / échecs d'envoi ----------------------- */
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: rgba(90, 184, 222, 0.12);
+  border: 1px solid rgba(90, 184, 222, 0.35);
+  font-size: 0.88rem;
+  color: var(--primary, #1a3969);
+}
+
+.progressTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(26, 57, 105, 0.12);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent, #5ab8de);
+  transition: width 0.3s ease;
+}
+
+.failBox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  font-size: 0.88rem;
+  color: #b91c1c;
+}
+
+.failBox span {
+  flex: 1 1 240px;
+}
+
+/* --------------------------- Lignes du tableau --------------------------- */
+
+.rowCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  cursor: pointer;
+}
+
+.rowCheck input {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  margin-top: 0.2rem;
+  accent-color: var(--primary, #1a3969);
+}
+
+.rowCheck strong {
+  display: block;
+}
+
+.selectedRow {
+  background: rgba(90, 184, 222, 0.09);
+}
+
+.subtleLine {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.76rem;
+  color: var(--text-muted, #9ca3af);
+}
+
+/* -------------------------- Barre de sélection -------------------------- */
+
+.selectionBar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 16px;
+  background: var(--primary, #1a3969);
+  color: #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.28);
+  animation: barIn 0.25s ease-out backwards;
+}
+
+.selCount {
+  margin-right: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.selSpacer {
+  flex: 1 1 0;
+}
+
+.selBtn {
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-pill, 999px);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.selBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.selBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.selBtnPrimary {
+  background: #ff6633;
+  border-color: #ff6633;
+}
+
+.selBtnPrimary:hover:not(:disabled) {
+  background: #e85a2b;
+}
+
+/* ----------------------- Formulaire de décision ----------------------- */
+
+.textarea {
+  width: 100%;
+  min-height: 110px;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1.5px solid var(--border, #e5e7eb);
+  background: var(--surface, #ffffff);
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-primary, #1f2937);
+  resize: vertical;
+}
+
+.textarea:focus-visible {
+  outline: 0;
+  border-color: var(--accent, #5ab8de);
+  box-shadow: 0 0 0 3px rgba(90, 184, 222, 0.2);
+}
+
+.counter {
+  align-self: flex-end;
+  font-size: 0.74rem;
+  color: var(--text-muted, #9ca3af);
+}
+
+@keyframes barIn {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selectionBar {
+    animation: none;
+  }
+  .progressFill {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .selSpacer {
+    display: none;
+  }
+  .selBtn {
+    flex: 1 1 auto;
+  }
+}
