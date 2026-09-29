@@ -1,0 +1,366 @@
+/* app/not-found.module.css
+   Page 404 de IRIS JOIN.
+
+   Choix de design :
+   - fond clair (comme LoadingScreen) : le corps de l'aigle est bleu marine,
+     il disparaîtrait sur le dégradé sombre des héros ;
+   - le « 404 » est un filigrane géant, l'aigle tourne autour : c'est le seul
+     moment animé de la page, le reste reste calme ;
+   - le parcours de recrutement (3 étapes) est proposé comme issue de secours.
+
+   Responsive : tailles fluides via clamp(), une seule bascule de mise en page
+   à 860px (colonnes → pile, aigle au-dessus du texte). */
+
+.page {
+  position: relative;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  min-height: 70vh;
+  min-height: 70dvh;
+  padding: clamp(2rem, 5vw, 4.5rem) 0 clamp(2.5rem, 6vw, 5rem);
+  background:
+    radial-gradient(720px 420px at 50% -10%, rgba(90, 184, 222, 0.16), transparent 60%),
+    radial-gradient(600px 380px at 100% 110%, rgba(255, 102, 51, 0.1), transparent 55%),
+    var(--background);
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+}
+
+/* Texte lu uniquement par les lecteurs d'écran. */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ------------------------------ Anneaux ------------------------------ */
+
+.rings {
+  position: absolute;
+  top: -70px;
+  right: clamp(-200px, -14vw, -90px);
+  width: clamp(320px, 60vw, 640px);
+  height: clamp(320px, 60vw, 640px);
+  pointer-events: none;
+}
+
+.rings circle {
+  fill: none;
+  stroke: rgba(26, 57, 105, 0.08);
+  stroke-width: 1;
+}
+
+.rings .ringArc {
+  fill: none;
+  stroke: var(--secondary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 0;
+  animation: drawArc 1.1s 0.2s var(--ease-out) backwards;
+}
+
+.rings .ringDot {
+  fill: var(--secondary);
+  stroke: none;
+  animation: dotIn 0.4s 1.1s ease-out backwards;
+}
+
+@keyframes drawArc {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+@keyframes dotIn {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ------------------------------ Héro ------------------------------ */
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 3rem);
+}
+
+.content {
+  display: grid;
+  justify-items: start;
+  gap: 1.15rem;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(2rem, 5.2vw, 3.5rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--primary);
+  text-wrap: balance;
+}
+
+.highlight {
+  color: var(--secondary);
+}
+
+.lead {
+  max-width: 32rem;
+  margin: 0;
+  font-size: clamp(1.05rem, 0.5vw + 1rem, 1.2rem);
+  line-height: 1.6;
+  color: var(--text-primary);
+  text-wrap: pretty;
+}
+
+.hint {
+  max-width: 32rem;
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 0.6rem;
+}
+
+/* ------------------------------ Aigle + 404 ------------------------------ */
+
+.visual {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: clamp(300px, 34vw, 420px);
+}
+
+.numeral {
+  grid-area: 1 / 1;
+  font-size: clamp(7.5rem, 22vw, 13rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(26, 57, 105, 0.07);
+  user-select: none;
+}
+
+.eagle {
+  grid-area: 1 / 1;
+  z-index: 1;
+  /* Compense la marge basse de 1.5rem de la scène de l'aigle pour le centrer. */
+  margin-bottom: -1.5rem;
+}
+
+/* ------------------------------ Parcours ------------------------------ */
+
+.path {
+  margin-top: clamp(2.25rem, 6vw, 3.75rem);
+}
+
+.pathTitle {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pathList {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+}
+
+.pathItem + .pathItem {
+  border-left: 1px solid var(--border);
+}
+
+.pathLink {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  height: 100%;
+  padding: 1.25rem 1.35rem;
+  transition: background var(--t-fast);
+}
+
+.pathLink:hover {
+  background: var(--surface-card-alt);
+}
+
+/* La liste est en overflow: hidden : l'anneau de focus reste à l'intérieur. */
+.pathLink:focus-visible {
+  outline-offset: -3px;
+}
+
+.pathIcon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: rgba(90, 184, 222, 0.14);
+  color: var(--primary);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+
+.pathLink:hover .pathIcon {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.pathText {
+  display: grid;
+  flex: 1;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.pathStep {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.pathLabel {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.pathHint {
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.pathArrow {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform var(--t-fast), color var(--t-fast);
+}
+
+.pathLink:hover .pathArrow {
+  transform: translateX(3px);
+  color: var(--secondary);
+}
+
+/* ------------------------------ Aide ------------------------------ */
+
+.help {
+  margin: 1.5rem 0 0;
+  text-align: center;
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+}
+
+.help a {
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: rgba(26, 57, 105, 0.35);
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--t-fast);
+}
+
+.help a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* ------------------------------ Responsive ------------------------------ */
+
+@media (max-width: 860px) {
+  .hero {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .content {
+    justify-items: center;
+  }
+
+  .actions {
+    justify-content: center;
+  }
+
+  /* L'aigle passe au-dessus du texte. */
+  .visual {
+    order: -1;
+    min-height: 280px;
+  }
+}
+
+@media (max-width: 760px) {
+  .pathList {
+    grid-template-columns: 1fr;
+  }
+
+  .pathItem + .pathItem {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 480px) {
+  .visual {
+    min-height: 250px;
+  }
+
+  .actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .actions > * {
+    width: 100%;
+  }
+
+  .pathLink {
+    padding: 1.1rem 1.15rem;
+  }
+}
+
+/* ------------------------------ Mouvement réduit ------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .rings .ringArc,
+  .rings .ringDot {
+    animation: none;
+  }
+
+  .pathLink,
+  .pathIcon,
+  .pathArrow {
+    transition: none;
+  }
+
+  .pathLink:hover .pathArrow {
+    transform: none;
+  }
+}

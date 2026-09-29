@@ -1,0 +1,180 @@
+/* components/not-found/EagleAnimation.module.css
+ *
+ * Animation de l'aigle de la page 404 : vol en orbite, battement d'ailes
+ * et traînée. Tout ce qui concerne l'aigle vit ici — la page 404 n'a
+ * qu'à insérer <EagleAnimation />.
+ *
+ * Réglages rapides (variables sur .stage) :
+ *   --orbit-radius : rayon de l'orbite
+ *   --eagle-size   : taille de l'aigle
+ */
+
+.stage {
+  --orbit-radius: 140px;
+  --eagle-size: 260px;
+
+  position: relative;
+  height: 200px;
+  margin: 0 auto 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* ---------------- Orbite ---------------- */
+
+.orbit {
+  position: relative;
+  width: var(--eagle-size);
+  height: var(--eagle-size);
+  animation: orbit 12s linear infinite;
+}
+
+@keyframes orbit {
+  from {
+    transform: rotate(0deg) translateX(var(--orbit-radius)) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(var(--orbit-radius)) rotate(-360deg);
+  }
+}
+
+.eagle {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 10px 25px rgba(26, 57, 105, 0.25));
+}
+
+/* ---------------- Couleurs (charte IRIS) ---------------- */
+
+.body {
+  fill: var(--primary, #1a3969);
+}
+
+.accent {
+  fill: var(--accent, #5ab8de);
+}
+
+.beak {
+  fill: var(--secondary, #ff6633);
+}
+
+.white {
+  fill: #ffffff;
+}
+
+/* ---------------- Ailes & corps ---------------- */
+
+.wingLeft,
+.wingRight,
+.bodyGroup {
+  transform-box: view-box;
+}
+
+.wingLeft {
+  transform-origin: 410px 250px;
+  animation: flapLeft 0.45s ease-in-out infinite alternate;
+}
+
+.wingRight {
+  transform-origin: 430px 250px;
+  animation: flapRight 0.45s ease-in-out infinite alternate;
+}
+
+.bodyGroup {
+  animation: bodyBob 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes flapLeft {
+  from {
+    transform: rotate(-15deg);
+  }
+  to {
+    transform: rotate(-70deg);
+  }
+}
+
+@keyframes flapRight {
+  from {
+    transform: rotate(15deg);
+  }
+  to {
+    transform: rotate(70deg);
+  }
+}
+
+@keyframes bodyBob {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-2px);
+  }
+}
+
+/* ---------------- Traînée ---------------- */
+
+.trail {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 100px;
+  margin: -50px 0 0 -150px;
+  opacity: 0;
+  animation: trailAppear 12s ease-in-out infinite;
+}
+
+@keyframes trailAppear {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  25%,
+  75% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+}
+
+/* ---------------- Responsive ---------------- */
+
+@media (max-width: 768px) {
+  .stage {
+    --orbit-radius: 110px;
+    --eagle-size: 200px;
+    height: 160px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stage {
+    --orbit-radius: 80px;
+    --eagle-size: 150px;
+    height: 120px;
+  }
+}
+
+/* ---------------- Réduction des animations ---------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .orbit,
+  .wingLeft,
+  .wingRight,
+  .bodyGroup,
+  .trail {
+    animation: none;
+  }
+
+  /* L'aigle reste posé au centre de la scène. */
+  .orbit {
+    transform: none;
+  }
+
+  .trail {
+    display: none;
+  }
+}
