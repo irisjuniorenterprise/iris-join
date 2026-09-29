@@ -1,8 +1,13 @@
 /* components/ui/PageHero.module.css
-   Hero des pages candidature / entretien.
+   Hero des pages candidature / entretien / résultats (et de l'admin).
    Les valeurs de base sont les états FINAUX ; les animations ne définissent
    que l'état de départ (« from »). Sans animation (mouvement réduit), la page
-   s'affiche donc directement dans son état complet. */
+   s'affiche donc directement dans son état complet.
+
+   Responsive : les tailles clés (titre, texte, espacements, anneaux, étapes
+   du parcours) sont fluides via clamp() plutôt que sur 1-2 paliers fixes,
+   pour rester lisible et bien proportionné de 320px (petit téléphone) à
+   l'écran large, sans à-coup à un breakpoint donné. */
 
 .hero {
   position: relative;
@@ -24,10 +29,10 @@
 
 .rings {
   position: absolute;
-  top: -90px;
-  right: -170px;
-  width: 640px;
-  height: 640px;
+  top: clamp(-60px, -6vw, -90px);
+  right: clamp(-150px, -18vw, -170px);
+  width: clamp(340px, 60vw, 640px);
+  height: clamp(340px, 60vw, 640px);
   pointer-events: none;
 }
 
@@ -70,14 +75,15 @@
 .body {
   position: relative;
   max-width: 40rem;
-  padding: 4.5rem 0 3.25rem;
+  /* Fluide plutôt que 2 paliers fixes : pas de saut brusque autour de 560px. */
+  padding: clamp(2.75rem, 6vw + 1rem, 4.5rem) 0 clamp(2rem, 4.5vw + 0.75rem, 3.25rem);
 }
 
 .title {
   margin: 0 0 1rem;
-  font-size: clamp(2.1rem, 5vw, 3.4rem);
+  font-size: clamp(1.85rem, 6.5vw, 3.4rem);
   font-weight: 800;
-  line-height: 1.06;
+  line-height: 1.1;
   letter-spacing: -0.03em;
   text-wrap: balance;
   text-shadow: 0 2px 24px rgba(0, 0, 0, 0.22);
@@ -86,7 +92,7 @@
 .lead {
   max-width: 34rem;
   margin: 0;
-  font-size: clamp(1rem, 1.4vw, 1.1rem);
+  font-size: clamp(0.95rem, 1.4vw + 0.55rem, 1.1rem);
   line-height: 1.65;
   color: rgba(255, 255, 255, 0.8);
   text-wrap: pretty;
@@ -104,7 +110,7 @@
   display: flex;
   max-width: 46rem;
   margin: 0;
-  padding: 1.25rem 0 1.4rem;
+  padding: clamp(1rem, 2vw + 0.5rem, 1.25rem) 0 clamp(1.15rem, 2vw + 0.6rem, 1.4rem);
   list-style: none;
 }
 
@@ -128,18 +134,18 @@
 .track {
   display: flex;
   align-items: center;
-  margin-bottom: 0.7rem;
+  margin-bottom: clamp(0.5rem, 1.2vw + 0.25rem, 0.7rem);
 }
 
 .node {
   display: grid;
   place-items: center;
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: clamp(24px, 4vw + 14px, 30px);
+  height: clamp(24px, 4vw + 14px, 30px);
   border: 1.5px solid rgba(255, 255, 255, 0.35);
   border-radius: 50%;
-  font-size: 0.8rem;
+  font-size: clamp(0.7rem, 1vw + 0.4rem, 0.8rem);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: rgba(255, 255, 255, 0.75);
@@ -171,8 +177,9 @@
 .line {
   position: relative;
   flex: 1;
+  min-width: 12px;
   height: 1.5px;
-  margin: 0 0.85rem;
+  margin: 0 clamp(0.35rem, 1.8vw, 0.85rem);
   overflow: hidden;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.18);
@@ -203,18 +210,28 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  /* L'étape peut devenir très étroite sur mobile (3 colonnes) : on tronque
+     proprement plutôt que de laisser le texte passer à la ligne et casser
+     l'alignement avec le node/la ligne au-dessus. */
+  min-width: 0;
 }
 
 .label {
-  font-size: 0.95rem;
+  font-size: clamp(0.76rem, 1.6vw + 0.5rem, 0.95rem);
   font-weight: 700;
   color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hint {
-  font-size: 0.8rem;
+  font-size: clamp(0.7rem, 1vw + 0.5rem, 0.8rem);
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .item[data-state='next'] .label {
@@ -228,24 +245,28 @@ a.step:hover .label {
 
 /* ------------------------------ Mobile ------------------------------ */
 
-@media (max-width: 560px) {
-  .rings {
-    top: -60px;
-    right: -150px;
-    width: 420px;
-    height: 420px;
+/* En dessous de ~380px (petits téléphones, ex. iPhone SE en portrait), le
+   sous-texte de chaque étape ("Formulaire en ligne", etc.) n'a plus la
+   place de s'afficher proprement à côté du node + de la ligne : on le
+   masque et on ne garde que le libellé court, toujours lisible grâce à
+   l'ellipsis ci-dessus. */
+@media (max-width: 380px) {
+  .hint {
+    display: none;
   }
-  .body {
-    padding: 3rem 0 2.5rem;
-  }
-  .line {
-    margin: 0 0.5rem;
+  .track {
+    margin-bottom: 0.4rem;
   }
 }
 
-@media (max-width: 480px) {
-  .hint {
-    display: none;
+/* Très petits écrans / zoom élevé : resserre encore le parcours pour éviter
+   tout débordement horizontal. */
+@media (max-width: 340px) {
+  .line {
+    margin: 0 0.3rem;
+  }
+  .rail {
+    padding-top: 0.85rem;
   }
 }
 

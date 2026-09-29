@@ -24,7 +24,7 @@ export default async function EntretienPage() {
       <PageHero
         current="entretien"
         title="Réservez votre entretien"
-        description="Sélectionnez un jour puis un créneau libre. Vous recevrez une confirmation par email avec les détails pratiques."
+        description="Sélectionnez un jour puis un créneau libre. Vous recevrez un rappel par email 24h avant votre entretien."
       />
       <section style={{ paddingTop: '2.5rem' }}>
         <div className="container" style={{ maxWidth: '820px' }}>
