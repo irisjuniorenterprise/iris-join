@@ -136,7 +136,7 @@ export default function HomePage() {
               <h3>Candidature en ligne</h3>
               <p>
                 Renseignez votre profil et votre motivation pour le
-                département de votre choix. Cinq minutes suffisent.
+                département de votre choix. Quinze minutes suffisent.
               </p>
               <span className="journey-connector" aria-hidden="true">
                 <Icons.ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} />
@@ -155,7 +155,7 @@ export default function HomePage() {
             </div>
             <div className="journey-step">
               <span className="journey-step-index">Étape 3</span>
-              <h3>Entretien &amp; intégration</h3>
+              <h3>Entretien &amp; décision</h3>
               <p>
                 Rencontrez l&rsquo;équipe, échangez sur vos motivations, et
                 recevez la décision sous 48h en moyenne.
@@ -175,23 +175,23 @@ export default function HomePage() {
           <div className="dept-grid">
             <div className="dept-card dept-card--it">
               <h3>IT</h3>
-              <p>Développement, data, systèmes — projets clients concrets</p>
-            </div>
-            <div className="dept-card dept-card--marketing">
-              <h3>Marketing</h3>
-              <p>Stratégie, communication, growth pour nos clients</p>
-            </div>
-            <div className="dept-card dept-card--etudes">
-              <h3>Études</h3>
-              <p>Conseil, analyse, gestion de projet</p>
-            </div>
-            <div className="dept-card dept-card--commercial">
-              <h3>Développement commercial</h3>
-              <p>Vente, prospection, relation client pour nos projets</p>
-            </div>
-          </div>
-        </div>
-      </section>
+              <p>Développement web, développement mobile, création de chatbots</p>
+              </div>
+              <div className="dept-card dept-card--marketing">
+                <h3>Marketing</h3>
+                <p>Branding, rebranding, community management</p>
+                </div>
+                <div className="dept-card dept-card--etudes">
+                  <h3>Études</h3>
+                  <p>Études de marché, études de notoriété, études de satisfaction, plans d&rsquo;affaires</p>
+                  </div>
+                  <div className="dept-card dept-card--commercial">
+                    <h3>Développement commercial</h3>
+                    <p>Prospection et acquisition de clients, partenaires et sponsors</p>
+                  </div>
+                </div>
+              </div>
+       </section>
 
       <section>
         <div className="container">
