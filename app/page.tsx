@@ -9,7 +9,7 @@ import { jobPostingJsonLd } from '@/lib/metadata';
 
 const benefits = [
   {
-    icon: Icons.Handshake,
+    icon: Icons.Briefcase,
     title: 'Projets clients réels',
     description: "Vous travaillez sur de vrais mandats, pour de vraies entreprises, pas des exercices fictifs.",
   },
@@ -60,10 +60,10 @@ export default function HomePage() {
             </h1>
 
             <p className="hero-lead">
-              IRIS Junior Entreprise recrute ses futurs consultants IT, Marketing
-              et Études. Déposez votre candidature en ligne et choisissez
+              IRIS Junior Entreprise recrute ses futurs consultants IT, Marketing,
+              Études et Développement commercial. Déposez votre candidature en ligne et choisissez
               vous-même votre créneau d&rsquo;entretien, en quelques minutes.
-            </p>
+              </p>
 
             <div className="hero-actions">
               <Link href="/candidature" className="btn btn-primary">
