@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = buildMetadata({
   title: 'Déposer ma candidature',
   description:
-    "Postulez à IRIS Junior Entreprise : IT, Marketing, Études ou Développement commercial. Remplissez le formulaire de candidature en ligne en moins de 15 minutes.",
+    "Postulez à IRIS Junior Entreprise : IT, Marketing, Études ou Développement commercial. Remplissez le formulaire de candidature en ligne en moins de 5 minutes.",
   path: '/candidature',
 });
 
