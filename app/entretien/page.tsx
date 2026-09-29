@@ -4,6 +4,7 @@ import { buildMetadata } from '@/lib/metadata';
 import { getServiceWindowStates } from '@/lib/settings-store';
 import EntretienGate from '@/components/entretien/EntretienGate';
 import PageHero from '@/components/ui/PageHero';
+import { Icons } from '@/components/icons/Icons';
 
 // Même raison que app/candidature/page.tsx : la disponibilité dépend de
 // l'heure actuelle et d'un réglage admin, donc pas de mise en cache statique.
@@ -23,7 +24,13 @@ export default async function EntretienPage() {
     <>
       <PageHero
         current="entretien"
-        title="Réservez votre entretien"
+        icon={Icons.Calendar}
+        title={
+          <>
+            Réservez votre{' '}
+            <span className="text-accent-orange">entretien</span>
+          </>
+        }
         description="Sélectionnez un jour puis un créneau libre. Vous recevrez un rappel par email 24h avant votre entretien."
       />
       <section style={{ paddingTop: '2.5rem' }}>
