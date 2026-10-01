@@ -16,7 +16,7 @@ const benefits = [
   {
     icon: Icons.GraduationCap,
     title: 'Montée en compétences',
-    description: 'Formations internes, mentorat par les anciens, retours concrets sur votre travail.',
+    description: 'Formations internes et externes, en hard skills comme en soft skills, pour progresser tout au long de votre parcours.',
   },
   {
     icon: Icons.Handshake,
@@ -25,8 +25,8 @@ const benefits = [
   },
   {
     icon: Icons.Crown,
-    title: 'Responsabilités concrètes',
-    description: 'Gestion de projet, relation client, prise de décision — dès votre première mission.',
+    title: 'Un rôle clair',
+    description: 'Le membre actif se concentre sur la réalisation des missions.',
   },
 ];
 
@@ -226,7 +226,7 @@ export default function HomePage() {
           }}
         >
           <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 2.1rem)', margin: 0 }}>
-            Prêt·e à postuler&nbsp;?
+            Prêt(e) à postuler&nbsp;?
           </h2>
           <p className="hero-lead" style={{ textAlign: 'center', margin: '0 auto' }}>
             La candidature prend 15 minutes. La réservation d&rsquo;entretien, 30 secondes de plus.

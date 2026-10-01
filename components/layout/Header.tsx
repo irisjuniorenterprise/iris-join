@@ -9,8 +9,8 @@ export default function Header() {
     <header className="site-header">
       <div className="site-header-inner">
         <Link href="/" className="brand">
-          <Image src="/logo-iris.png" alt="IRIS Junior Entreprise" width={75} height={75} />
-          <span className="brand-mark">IRIS JOIN</span>
+          <Image src="/logo-join.svg" alt="IRIS Junior Entreprise" width={75} height={75} />
+          {/* <span className="brand-mark">IRIS JOIN</span> */}
         </Link>
         <a href={PARENT_SITE_URL} className="back-to-site">
           <Icons.ChevronDown size={14} style={{ transform: 'rotate(90deg)' }} />
