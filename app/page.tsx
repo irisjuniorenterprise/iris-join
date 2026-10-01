@@ -56,7 +56,7 @@ export default function HomePage() {
 
             <h1>
               Ne postulez pas juste à un club. Rejoignez{' '}
-              <span className="text-accent-orange">une entreprise</span>.
+              <span className="text-accent-orange">une junior entreprise</span>.
             </h1>
 
             <p className="hero-lead">
