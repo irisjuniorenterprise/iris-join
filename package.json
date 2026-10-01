@@ -36,6 +36,8 @@
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^2.1.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "firebase-tools": "^14.23.0",
