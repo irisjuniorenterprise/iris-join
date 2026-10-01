@@ -101,7 +101,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const body = await request.json();
+  // Corps absent ou JSON invalide : 400 propre au lieu d'une exception (500).
+  const body = await request.json().catch(() => null);
   const result = candidatureSchema.safeParse(body);
   if (!result.success) {
     return NextResponse.json(

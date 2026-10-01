@@ -12,9 +12,36 @@
 .env
 .env*.local
 
+# clés de compte de service Firebase / Google Cloud
+serviceAccount*.json
+*-firebase-adminsdk-*.json
+
 # misc
 .DS_Store
+Thumbs.db
+desktop.ini
 *.pem
+*.zip
 npm-debug.log*
 tsconfig.tsbuildinfo
 next-env.d.ts
+.eslintcache
+
+# éditeur
+.idea/
+
+# tests : sorties générées (Playwright, Vitest)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/coverage/
+
+# émulateur Firebase : logs locaux
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+.firebase/
+
+# vercel
+.vercel/

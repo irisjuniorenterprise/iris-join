@@ -6,27 +6,36 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "firebase emulators:exec --only firestore --project demo-iris-join \"vitest run\"",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:emulator": "firebase emulators:exec --only firestore --project demo-iris-join \"vitest run tests/integration\"",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@tailwindcss/postcss": "^4.3.3",
-    "firebase": "^11.2.0",
-    "firebase-admin": "^13.1.0",
-    "next": "16.2.9",
-    "nodemailer": "^6.9.16",
+    "firebase": "^9.14.0",
+    "firebase-admin": "^14.5.0",
+    "next": "^16.3.8",
+    "nodemailer": "^10.0.13",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.54.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@axe-core/playwright": "^4.10.0",
+    "@playwright/test": "^1.50.0",
+    "@types/node": "^22",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
-    "typescript": "^5"
+    "firebase-tools": "^14.23.0",
+    "typescript": "^5",
+    "vitest": "^5.0.3"
   }
 }

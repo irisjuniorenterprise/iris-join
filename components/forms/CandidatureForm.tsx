@@ -284,7 +284,6 @@ function OrderedDepartmentPicker({ control, invalid }: OrderedDepartmentPickerPr
             className={`${styles.field} ${invalid ? choices.groupInvalid : ''}`}
             role="group"
             aria-labelledby={labelId}
-            aria-required="true"
             aria-invalid={invalid}
           >
             <span id={labelId} className={choices.groupLabel}>
