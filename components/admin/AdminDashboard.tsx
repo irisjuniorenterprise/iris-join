@@ -465,6 +465,8 @@ export default function AdminDashboard() {
             candidatures={data.candidatures}
             bookingByEmail={bookingByEmail}
             onRequest={setDialog}
+            getIdToken={() => tokenRef.current()}
+            onImported={() => load(true)}
           />
         )}
         {tab === 'interviews' && (

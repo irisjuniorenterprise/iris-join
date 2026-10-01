@@ -14,6 +14,7 @@ import {
   type DepartmentKey,
 } from '@/lib/interview';
 import Modal from './Modal';
+import ImportDialog from './ImportDialog';
 import {
   DeptBadge,
   fold,
@@ -30,6 +31,8 @@ type Props = {
   candidatures: Candidature[];
   bookingByEmail: Map<string, AdminSlot>;
   onRequest: (request: DialogRequest) => void;
+  getIdToken: () => Promise<string | null>;
+  onImported: () => void;
 };
 
 type InterviewFilter = 'all' | 'booked' | 'none';
@@ -100,11 +103,18 @@ function exportCsv(rows: Candidature[], bookingByEmail: Map<string, AdminSlot>) 
 
 /* ---------------------------- Composant ---------------------------- */
 
-export default function CandidaturesPanel({ candidatures, bookingByEmail, onRequest }: Props) {
+export default function CandidaturesPanel({
+  candidatures,
+  bookingByEmail,
+  onRequest,
+  getIdToken,
+  onImported,
+}: Props) {
   const [query, setQuery] = useState('');
   const [department, setDepartment] = useState<'all' | DepartmentKey>('all');
   const [interview, setInterview] = useState<InterviewFilter>('all');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const q = fold(query.trim());
@@ -164,6 +174,15 @@ export default function CandidaturesPanel({ candidatures, bookingByEmail, onRequ
           <option value="booked">Entretien réservé</option>
           <option value="none">Sans entretien</option>
         </select>
+
+        <button
+          type="button"
+          className={`btn btn-outline ${styles.compact}`}
+          onClick={() => setImportOpen(true)}
+        >
+          <Icons.FileText size={16} />
+          Importer Excel
+        </button>
 
         <button
           type="button"
@@ -236,6 +255,14 @@ export default function CandidaturesPanel({ candidatures, bookingByEmail, onRequ
             </tbody>
           </table>
         </div>
+      )}
+
+      {importOpen && (
+        <ImportDialog
+          getIdToken={getIdToken}
+          onClose={() => setImportOpen(false)}
+          onImported={onImported}
+        />
       )}
 
       {opened && (
