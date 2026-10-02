@@ -2,24 +2,36 @@
 //
 // Import en masse de candidatures depuis un fichier Excel (.xlsx).
 //   GET  → télécharge le modèle Excel (menus déroulants inclus).
-//   POST → multipart/form-data { file, consent, dryRun?, notify? }
+//   POST → multipart/form-data { file, consent, dryRun?, notify?, allowNoDepartment? }
 //          dryRun=true : valide seulement et renvoie le rapport ligne par ligne.
 //          sinon       : enregistre les lignes valides.
-// Réservé aux administrateurs (ADMIN_EMAILS). Les mêmes règles que le
-// formulaire public s'appliquent (lib/candidature.ts) et la règle « une
-// candidature par e-mail » est respectée.
+//
+// Deux formats de fichier sont acceptés (détectés automatiquement) :
+//   • « modele »   : le modèle téléchargé ci-dessus (15 colonnes, feuille
+//                    « Candidatures »), mêmes règles que le formulaire public ;
+//   • « registre » : le registre des candidats d'IRIS JE — colonnes Prénom,
+//                    Nom, CIN, E-mail, Num de téléphone, Date de naissance,
+//                    Adresse, Niveau d'étude, Nationalité, Département, à
+//                    n'importe quelle position de la feuille (voir
+//                    lib/candidature-excel.ts). Le registre ne contient pas
+//                    les réponses du questionnaire : elles restent absentes.
+//
+// Réservé aux administrateurs (ADMIN_EMAILS). La règle « une candidature
+// par e-mail » est respectée dans les deux formats.
 import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { getAdminDb } from '@/lib/firebase-admin';
 import { denyResponse, requireAdmin } from '@/lib/admin-auth';
 import { sendCandidatureConfirmation } from '@/lib/email';
-import { DEPARTMENT_LABELS } from '@/lib/interview';
+import { DEPARTMENT_LABELS, type DepartmentKey } from '@/lib/interview';
 import { departementPrincipal } from '@/lib/candidature';
+import { ExcelImportError, extractCandidates } from '@/lib/candidature-excel';
 import {
   IMPORT_COLUMNS,
   IMPORT_MAX_FILE_BYTES,
   IMPORT_MAX_ROWS,
   IMPORT_SHEET_NAME,
+  buildRegistreCandidature,
   mapHeaders,
   parseImportRow,
   type ImportKey,
@@ -31,12 +43,28 @@ export const maxDuration = 60;
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
 
+type ImportFormat = 'modele' | 'registre';
+
 type RowReport = {
   line: number;
   nomPrenom: string;
   email: string;
   status: 'ok' | 'duplicate' | 'error';
+  /** Raisons du rejet (statuts « error » et « duplicate »). */
   errors: string[];
+  /** Remarques sur une ligne importée (donnée manquante ou corrigée). */
+  warnings: string[];
+};
+
+/** Une candidature prête à être écrite dans Firestore. */
+type PendingCandidature = {
+  line: number;
+  email: string;
+  nomPrenom: string;
+  /** Document Firestore (hors email / dates / traçabilité, ajoutés à l'écriture). */
+  doc: Record<string, unknown>;
+  /** Libellé du département (null si le candidat n'en a pas : pas d'e-mail possible). */
+  departementLabel: string | null;
 };
 
 function fail(message: string, status = 400) {
@@ -56,6 +84,10 @@ function cellText(value: ExcelJS.CellValue): string {
   if (typeof o.text === 'string') return o.text.trim(); // lien hypertexte (mailto:…)
   if (o.result !== undefined && o.result !== null) return cellText(o.result as ExcelJS.CellValue);
   return '';
+}
+
+function labelOf(department: DepartmentKey | null | undefined): string | null {
+  return department ? DEPARTMENT_LABELS[department] : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -143,12 +175,13 @@ export async function POST(request: Request) {
   const file = form.get('file');
   if (!(file instanceof File)) return fail('Aucun fichier reçu.');
   if (!file.name.toLowerCase().endsWith('.xlsx')) {
-    return fail('Format non pris en charge : utilisez un fichier Excel .xlsx (le modèle).');
+    return fail('Format non pris en charge : utilisez un fichier Excel .xlsx (le modèle ou le registre des candidats).');
   }
   if (file.size > IMPORT_MAX_FILE_BYTES) return fail('Fichier trop volumineux (2 Mo maximum).');
 
   const dryRun = form.get('dryRun') === 'true';
   const notify = form.get('notify') === 'true';
+  const allowNoDepartment = form.get('allowNoDepartment') === 'true';
   if (!dryRun && form.get('consent') !== 'true') {
     return fail('Vous devez confirmer le consentement des candidats avant d’importer.');
   }
@@ -163,14 +196,7 @@ export async function POST(request: Request) {
   } catch {
     return fail('Fichier illisible : est-ce bien un classeur Excel .xlsx valide ?');
   }
-  const sheet = wb.getWorksheet(IMPORT_SHEET_NAME) ?? wb.worksheets[0];
-  if (!sheet) return fail('Le classeur ne contient aucune feuille.');
-
-  const headerValues = (sheet.getRow(1).values as ExcelJS.CellValue[]).slice(1).map(cellText);
-  const { indexByKey, missing } = mapHeaders(headerValues);
-  if (missing.length > 0) {
-    return fail(`Colonnes manquantes : ${missing.join(', ')}. Utilisez le modèle fourni.`);
-  }
+  if (wb.worksheets.length === 0) return fail('Le classeur ne contient aucune feuille.');
 
   // E-mails déjà candidats (une seule candidature par e-mail).
   const existingSnap = await db.collection('candidatures').select('email').get();
@@ -179,57 +205,138 @@ export async function POST(request: Request) {
   );
 
   const reports: RowReport[] = [];
-  const toCreate: { line: number; data: NonNullable<ReturnType<typeof parseImportRow>['data']>; email: string }[] = [];
+  const toCreate: PendingCandidature[] = [];
   const seenInFile = new Set<string>();
-  let rowCount = 0;
 
-  for (let r = 2; r <= sheet.rowCount; r += 1) {
-    const row = sheet.getRow(r);
-    const cells: Partial<Record<ImportKey, string>> = {};
-    let empty = true;
-    for (const [key, idx] of indexByKey) {
-      const text = cellText(row.getCell(idx + 1).value);
-      cells[key] = text;
-      if (text) empty = false;
-    }
-    if (empty) continue;
-
-    rowCount += 1;
-    if (rowCount > IMPORT_MAX_ROWS) {
-      return fail(`Trop de lignes : ${IMPORT_MAX_ROWS} candidatures maximum par import.`);
-    }
-
-    const parsed = parseImportRow(cells);
-    const report: RowReport = {
-      line: r,
-      nomPrenom: cells.nomPrenom ?? '',
-      email: parsed.email,
-      status: 'ok',
-      errors: parsed.errors,
-    };
-
-    if (parsed.errors.length > 0 || !parsed.data) {
-      report.status = 'error';
-    } else if (existing.has(parsed.email)) {
-      report.status = 'duplicate';
-      report.errors = ['Une candidature existe déjà avec cet e-mail.'];
-    } else if (seenInFile.has(parsed.email)) {
-      report.status = 'duplicate';
-      report.errors = ['E-mail en double dans le fichier (ligne ignorée).'];
-    } else {
-      seenInFile.add(parsed.email);
-      toCreate.push({ line: r, data: parsed.data, email: parsed.email });
+  /** Contrôles communs aux deux formats : doublons en base puis dans le fichier. */
+  const register = (report: RowReport, pending: PendingCandidature | null) => {
+    if (pending) {
+      if (existing.has(pending.email)) {
+        report.status = 'duplicate';
+        report.errors = ['Une candidature existe déjà avec cet e-mail.'];
+      } else if (seenInFile.has(pending.email)) {
+        report.status = 'duplicate';
+        report.errors = ['E-mail en double dans le fichier (ligne ignorée).'];
+      } else {
+        seenInFile.add(pending.email);
+        toCreate.push(pending);
+      }
     }
     reports.push(report);
+  };
+
+  /* ---- Détection du format : modèle (en-têtes en ligne 1) sinon registre ---- */
+  const templateSheet = wb.getWorksheet(IMPORT_SHEET_NAME) ?? wb.worksheets[0];
+  const headerValues = (templateSheet.getRow(1).values as ExcelJS.CellValue[]).slice(1).map(cellText);
+  const { indexByKey, missing } = mapHeaders(headerValues);
+  const format: ImportFormat = missing.length === 0 ? 'modele' : 'registre';
+
+  if (format === 'modele') {
+    let rowCount = 0;
+    for (let r = 2; r <= templateSheet.rowCount; r += 1) {
+      const row = templateSheet.getRow(r);
+      const cells: Partial<Record<ImportKey, string>> = {};
+      let empty = true;
+      for (const [key, idx] of indexByKey) {
+        const text = cellText(row.getCell(idx + 1).value);
+        cells[key] = text;
+        if (text) empty = false;
+      }
+      if (empty) continue;
+
+      rowCount += 1;
+      if (rowCount > IMPORT_MAX_ROWS) {
+        return fail(`Trop de lignes : ${IMPORT_MAX_ROWS} candidatures maximum par import.`);
+      }
+
+      const parsed = parseImportRow(cells);
+      const report: RowReport = {
+        line: r,
+        nomPrenom: cells.nomPrenom ?? '',
+        email: parsed.email,
+        status: 'ok',
+        errors: parsed.errors,
+        warnings: [],
+      };
+
+      if (parsed.errors.length > 0 || !parsed.data) {
+        report.status = 'error';
+        register(report, null);
+        continue;
+      }
+
+      const departement = departementPrincipal(parsed.data.departements);
+      register(report, {
+        line: r,
+        email: parsed.email,
+        nomPrenom: parsed.data.nomPrenom,
+        doc: { ...parsed.data, departement, source: 'import-admin' },
+        departementLabel: labelOf(departement),
+      });
+    }
+  } else {
+    let extracted: ReturnType<typeof extractCandidates>;
+    try {
+      extracted = extractCandidates(wb, { maxRows: IMPORT_MAX_ROWS });
+    } catch (err) {
+      if (err instanceof ExcelImportError) {
+        return fail(`${err.message} Vous pouvez aussi utiliser le modèle d’import fourni.`);
+      }
+      throw err;
+    }
+
+    // Lignes que le lecteur a écartées (e-mail manquant / invalide / doublon dans le fichier).
+    for (const s of extracted.skipped) {
+      register(
+        {
+          line: s.excelRow,
+          nomPrenom: [s.prenom, s.nom].filter(Boolean).join(' '),
+          email: s.email,
+          status: s.reason.startsWith('Doublon') ? 'duplicate' : 'error',
+          errors: [s.reason],
+          warnings: [],
+        },
+        null,
+      );
+    }
+
+    for (const candidate of extracted.rows) {
+      const built = buildRegistreCandidature(candidate, { allowNoDepartment });
+      const report: RowReport = {
+        line: candidate.excelRow,
+        nomPrenom: candidate.nomPrenom,
+        email: built.email,
+        status: built.data ? 'ok' : 'error',
+        errors: built.errors,
+        warnings: built.warnings,
+      };
+      register(
+        report,
+        built.data
+          ? {
+              line: candidate.excelRow,
+              email: built.email,
+              nomPrenom: built.data.nomPrenom,
+              // Le registre ne porte aucune réponse de questionnaire : on n'écrit que ce qu'il contient.
+              doc: { ...built.data, consentement: true, source: 'import-registre' },
+              departementLabel: labelOf(built.data.departement),
+            }
+          : null,
+      );
+    }
+
+    reports.sort((a, b) => a.line - b.line);
   }
 
   if (reports.length === 0) return fail('Le fichier ne contient aucune candidature.');
 
   const summary = {
+    format,
     total: reports.length,
     valid: toCreate.length,
     duplicates: reports.filter((x) => x.status === 'duplicate').length,
     errors: reports.filter((x) => x.status === 'error').length,
+    withWarnings: reports.filter((x) => x.status === 'ok' && x.warnings.length > 0).length,
   };
 
   if (dryRun) {
@@ -243,12 +350,10 @@ export async function POST(request: Request) {
       const batch = db.batch();
       for (const item of toCreate.slice(i, i + 400)) {
         batch.set(db.collection('candidatures').doc(), {
-          ...item.data,
-          departement: departementPrincipal(item.data.departements),
+          ...item.doc,
           email: item.email,
           createdAt: now,
           updatedAt: now,
-          source: 'import-admin',
           importedBy: check.email,
         });
       }
@@ -260,17 +365,17 @@ export async function POST(request: Request) {
   }
 
   // E-mails de confirmation (ne bloquent jamais : l'import est déjà fait).
+  // Un candidat sans département n'en reçoit pas : l'e-mail cite son département.
   let emailsSent = 0;
   if (notify) {
-    for (let i = 0; i < toCreate.length; i += 10) {
+    const recipients = toCreate.filter((item) => item.departementLabel);
+    for (let i = 0; i < recipients.length; i += 10) {
       const results = await Promise.allSettled(
-        toCreate.slice(i, i + 10).map((item) =>
-          sendCandidatureConfirmation(
-            item.email,
-            item.data.nomPrenom,
-            DEPARTMENT_LABELS[departementPrincipal(item.data.departements)],
+        recipients
+          .slice(i, i + 10)
+          .map((item) =>
+            sendCandidatureConfirmation(item.email, item.nomPrenom, item.departementLabel as string),
           ),
-        ),
       );
       emailsSent += results.filter((x) => x.status === 'fulfilled').length;
     }

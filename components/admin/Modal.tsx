@@ -16,6 +16,8 @@ type ModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  /** Classe CSS ajoutée à la boîte de dialogue (ex. pour l'élargir ou l'agrandir). */
+  className?: string;
   /** Empêche la fermeture pendant une requête en cours. */
   busy?: boolean;
 };
@@ -23,7 +25,7 @@ type ModalProps = {
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export default function Modal({ title, subtitle, onClose, children, footer, wide, busy }: ModalProps) {
+export default function Modal({ title, subtitle, onClose, children, footer, wide, className, busy }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
@@ -76,7 +78,7 @@ export default function Modal({ title, subtitle, onClose, children, footer, wide
     >
       <div
         ref={dialogRef}
-        className={`${styles.modal} ${wide ? styles.modalWide : ''}`}
+        className={`${styles.modal} ${wide ? styles.modalWide : ''} ${className ?? ''}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

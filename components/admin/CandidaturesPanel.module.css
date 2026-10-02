@@ -1,0 +1,156 @@
+/* components/admin/CandidaturesPanel.module.css
+   Compléments de style du panneau « Candidatures » (les classes de base
+   restent dans admin.module.css). */
+
+/* Liste des candidatures : grande zone défilante qui occupe la hauteur de
+   l'écran (au lieu d'une liste qui s'étire sur toute la page), avec en-tête
+   de colonnes fixe et lignes alternées pour lire facilement un import de
+   plusieurs dizaines de candidats. */
+.tableScroll {
+  max-height: calc(100vh - 17rem);
+  max-height: calc(100dvh - 17rem);
+  min-height: min(32rem, 70vh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  box-shadow: inset 0 -12px 12px -12px rgba(15, 23, 42, 0.08);
+}
+
+.tableScroll:focus-visible {
+  outline: 2px solid var(--focus, #5ab8de);
+  outline-offset: 2px;
+}
+
+.table {
+  min-width: 760px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-card-alt, #f6fafd);
+  box-shadow: 0 1px 0 var(--border);
+}
+
+.table tbody tr:nth-child(even) td {
+  background: rgba(246, 250, 253, 0.6);
+}
+
+.table tbody tr:hover td {
+  background: rgba(90, 184, 222, 0.09);
+}
+
+.table td {
+  padding-top: 0.95rem;
+  padding-bottom: 0.95rem;
+}
+
+/* Petits écrans : admin.module.css transforme le tableau en cartes, la zone
+   défilante interne n'a alors plus de sens. */
+@media (max-width: 720px) {
+  .tableScroll {
+    max-height: none;
+    min-height: 0;
+    overflow: visible;
+    box-shadow: none;
+  }
+
+  .table {
+    min-width: 0;
+  }
+
+  .table thead th {
+    position: static;
+  }
+
+  .table tbody tr:nth-child(even) td,
+  .table tbody tr:hover td {
+    background: transparent;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Mode suppression (Ctrl+0)                                            */
+/* ------------------------------------------------------------------ */
+
+.selectionBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  border-radius: var(--radius-md, 12px);
+  background: rgba(220, 38, 38, 0.06);
+}
+
+.selectionCount {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.selectionExit {
+  margin-left: auto;
+}
+
+.selectionExit kbd {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.checkCell {
+  width: 44px;
+  text-align: center;
+}
+
+.checkCell input {
+  width: 18px;
+  height: 18px;
+  accent-color: #dc2626;
+  cursor: pointer;
+}
+
+.table tbody tr.rowSelected td {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.deleteList {
+  margin: 0.5rem 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.deleteList span {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 720px) {
+  .selectionExit {
+    margin-left: 0;
+  }
+
+  .checkCell {
+    width: auto;
+    text-align: left;
+  }
+
+  .table tbody tr.rowSelected td {
+    background: transparent;
+  }
+
+  .table tbody tr.rowSelected {
+    outline: 2px solid rgba(220, 38, 38, 0.45);
+    outline-offset: -2px;
+  }
+}

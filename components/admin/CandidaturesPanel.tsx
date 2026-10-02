@@ -2,9 +2,12 @@
 // components/admin/CandidaturesPanel.tsx
 //
 // Candidatures soumises via le formulaire : recherche, filtres par
-// département / statut d'entretien, fiche détaillée et export CSV.
-import { useMemo, useState } from 'react';
+// département / statut d'entretien, fiche détaillée, export CSV et
+// suppression en masse (Ctrl+0 affiche / masque le mode sélection).
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icons } from '@/components/icons/Icons';
+import { useAuth } from '@/lib/auth';
+import { useToast } from '@/lib/toast';
 import {
   DEPARTMENT_KEYS,
   DEPARTMENT_LABELS,
@@ -13,10 +16,12 @@ import {
   normalizeDepartment,
   type DepartmentKey,
 } from '@/lib/interview';
+import { ConfirmDialog } from './dialogs';
+import ImportCandidaturesDialog from './ImportCandidaturesDialog';
 import Modal from './Modal';
-import ImportDialog from './ImportDialog';
 import {
   DeptBadge,
+  adminRequest,
   fold,
   emailKey,
   formatDateTime,
@@ -26,13 +31,23 @@ import {
   type DialogRequest,
 } from './shared';
 import styles from './admin.module.css';
+import panel from './CandidaturesPanel.module.css';
 
 type Props = {
   candidatures: Candidature[];
   bookingByEmail: Map<string, AdminSlot>;
   onRequest: (request: DialogRequest) => void;
-  getIdToken: () => Promise<string | null>;
-  onImported: () => void;
+  /** Jeton Firebase de l'administrateur (par défaut : celui du contexte d'authentification). */
+  getIdToken?: () => Promise<string | null>;
+  /** Appelé après un import ou une suppression : le tableau de bord recharge ses données. */
+  onImported?: () => void;
+};
+
+type DeleteResult = {
+  ok?: boolean;
+  deleted?: number;
+  releasedSlots?: number;
+  removedDecisions?: number;
 };
 
 type InterviewFilter = 'all' | 'booked' | 'none';
@@ -58,12 +73,23 @@ function formatDepartementsOrdre(departements: string[]): string {
     .join(' · ');
 }
 
+/** Valeur affichée quand une donnée n'existe pas (import du registre : voir lib/candidature-import.ts). */
+const MISSING = '-';
+
+/** « oui » / « non » du formulaire ; tout le reste (import du registre) = tiret. */
+function formatEngagement(value: string): string {
+  if (value === 'oui') return 'Oui';
+  if (value === 'non') return 'Non';
+  return MISSING;
+}
+
 /* ------------------------------ CSV ------------------------------ */
 
 function csvCell(value: string): string {
   let text = value ?? '';
-  // Neutralise l'injection de formules à l'ouverture dans Excel.
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  // Neutralise l'injection de formules à l'ouverture dans Excel
+  // (sauf le simple tiret « - » : c'est la valeur des données absentes).
+  if (text !== MISSING && /^[=+\-@\t\r]/.test(text)) text = `'${text}`;
   return `"${text.replace(/"/g, '""')}"`;
 }
 
@@ -82,7 +108,7 @@ function exportCsv(rows: Candidature[], bookingByEmail: Map<string, AdminSlot>) 
       c.department ? DEPARTMENT_LABELS[c.department] : c.departement,
       formatDepartementsOrdre(c.departements),
       c.sourceConnaissance, c.niveauFrancais, c.niveauAnglais, c.participationFormations,
-      c.autreEngagement === 'oui' ? 'Oui' : 'Non', c.organisationTemps,
+      formatEngagement(c.autreEngagement), c.organisationTemps,
       c.motivation, c.domaine, c.remarques, formatDateTime(c.createdAt),
       slot ? `${formatDayLong(slot.date)} ${slot.time}` : '',
     ]
@@ -110,11 +136,19 @@ export default function CandidaturesPanel({
   getIdToken,
   onImported,
 }: Props) {
+  const auth = useAuth();
+  const { showToast } = useToast();
   const [query, setQuery] = useState('');
   const [department, setDepartment] = useState<'all' | DepartmentKey>('all');
   const [interview, setInterview] = useState<InterviewFilter>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+
+  // Mode suppression (Ctrl+0) : cases à cocher + barre d'actions.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const selectModeRef = useRef(false);
 
   const filtered = useMemo(() => {
     const q = fold(query.trim());
@@ -127,6 +161,81 @@ export default function CandidaturesPanel({
       return fold(`${c.nomPrenom} ${c.email} ${c.telephone} ${c.filiere} ${c.niveauEtudes}`).includes(q);
     });
   }, [candidatures, bookingByEmail, query, department, interview]);
+
+  // Seules les candidatures VISIBLES (après filtres) et cochées sont supprimées :
+  // une case cochée puis masquée par un filtre n'est jamais supprimée à l'insu de l'admin.
+  const selectedRows = useMemo(() => filtered.filter((c) => selected.has(c.id)), [filtered, selected]);
+  const allSelected = filtered.length > 0 && selectedRows.length === filtered.length;
+
+  // Le raccourci clavier est ignoré tant qu'un dialogue est ouvert.
+  const blocked = openId !== null || importOpen || confirmOpen;
+
+  const toggleSelectMode = useCallback(() => {
+    const next = !selectModeRef.current;
+    selectModeRef.current = next;
+    setSelectMode(next);
+    if (!next) setSelected(new Set());
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.repeat || event.altKey) return; // Alt+Ctrl = AltGr (ex. « @ » sur AZERTY)
+      if (!(event.ctrlKey || event.metaKey)) return;
+      // `code` = touche physique : fonctionne aussi sur AZERTY, où le « 0 » est « à ».
+      if (event.code !== 'Digit0' && event.code !== 'Numpad0' && event.key !== '0') return;
+      event.preventDefault(); // évite la réinitialisation du zoom du navigateur
+      if (blocked) return;
+      toggleSelectMode();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggleSelectMode, blocked]);
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) filtered.forEach((c) => next.delete(c.id));
+      else filtered.forEach((c) => next.add(c.id));
+      return next;
+    });
+  }
+
+  async function deleteSelected(): Promise<boolean> {
+    const ids = selectedRows.map((c) => c.id);
+    const res = await adminRequest<DeleteResult>(
+      () => (getIdToken ?? auth.getIdToken)(),
+      '/api/admin/candidatures',
+      { method: 'DELETE', body: { ids } },
+    );
+
+    if (!res.ok || !res.data?.ok) {
+      showToast(res.data?.message ?? 'Suppression impossible.', 'error');
+      onImported?.(); // l'état a peut-être changé : on recharge
+      return false;
+    }
+
+    const count = res.data.deleted ?? 0;
+    const released = res.data.releasedSlots ?? 0;
+    showToast(
+      `${count} candidature${count > 1 ? 's' : ''} supprimée${count > 1 ? 's' : ''}` +
+        (released ? ` · ${released} créneau${released > 1 ? 'x' : ''} libéré${released > 1 ? 's' : ''}` : '') +
+        '.',
+      'success',
+    );
+    setSelected(new Set());
+    setConfirmOpen(false);
+    onImported?.();
+    return true;
+  }
 
   const opened = candidatures.find((c) => c.id === openId) ?? null;
   const openedSlot = opened ? (bookingByEmail.get(emailKey(opened.email)) ?? null) : null;
@@ -178,20 +287,20 @@ export default function CandidaturesPanel({
         <button
           type="button"
           className={`btn btn-outline ${styles.compact}`}
-          onClick={() => setImportOpen(true)}
-        >
-          <Icons.FileText size={16} />
-          Importer Excel
-        </button>
-
-        <button
-          type="button"
-          className={`btn btn-outline ${styles.compact}`}
           onClick={() => exportCsv(filtered, bookingByEmail)}
           disabled={filtered.length === 0}
         >
           <Icons.FileText size={16} />
           Exporter CSV
+        </button>
+
+        <button
+          type="button"
+          className={`btn btn-primary ${styles.compact}`}
+          onClick={() => setImportOpen(true)}
+        >
+          <Icons.Layers size={16} />
+          Importer un fichier Excel
         </button>
       </div>
 
@@ -200,16 +309,65 @@ export default function CandidaturesPanel({
         {filtered.length !== candidatures.length ? ` sur ${candidatures.length}` : ''}
       </p>
 
+      {selectMode && (
+        <div className={panel.selectionBar} role="region" aria-label="Suppression de candidatures">
+          <button
+            type="button"
+            className={`btn btn-outline ${styles.compact}`}
+            onClick={toggleAll}
+            disabled={filtered.length === 0}
+          >
+            <Icons.Check size={16} />
+            {allSelected ? 'Tout désélectionner' : `Sélectionner tout (${filtered.length})`}
+          </button>
+          <span className={panel.selectionCount} aria-live="polite">
+            {selectedRows.length} sélectionnée{selectedRows.length > 1 ? 's' : ''}
+          </span>
+          <button
+            type="button"
+            className={`btn ${styles.danger} ${styles.compact}`}
+            onClick={() => setConfirmOpen(true)}
+            disabled={selectedRows.length === 0}
+          >
+            <Icons.X size={16} />
+            Supprimer{selectedRows.length > 0 ? ` (${selectedRows.length})` : ''}
+          </button>
+          <button
+            type="button"
+            className={`btn btn-outline ${styles.compact} ${panel.selectionExit}`}
+            onClick={toggleSelectMode}
+          >
+            Terminer <kbd>Ctrl+0</kbd>
+          </button>
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <div className={styles.empty}>
           <Icons.Search size={28} />
           <p>{candidatures.length === 0 ? 'Aucune candidature pour le moment.' : 'Aucun résultat pour ces filtres.'}</p>
+          {candidatures.length === 0 && (
+            <button type="button" className={`btn btn-primary ${styles.compact}`} onClick={() => setImportOpen(true)}>
+              <Icons.Layers size={16} />
+              Importer un fichier Excel
+            </button>
+          )}
         </div>
       ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
+        <div className={`${styles.tableWrap} ${panel.tableScroll}`} tabIndex={0} aria-label="Liste des candidatures">
+          <table className={`${styles.table} ${panel.table}`}>
             <thead>
               <tr>
+                {selectMode && (
+                  <th scope="col" className={panel.checkCell}>
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      aria-label="Tout sélectionner"
+                    />
+                  </th>
+                )}
                 <th scope="col">Candidat</th>
                 <th scope="col">Département</th>
                 <th scope="col">Niveau</th>
@@ -221,15 +379,32 @@ export default function CandidaturesPanel({
             <tbody>
               {filtered.map((c) => {
                 const slot = bookingByEmail.get(emailKey(c.email));
+                const isSelected = selected.has(c.id);
+                const open = () => (selectMode ? toggleOne(c.id) : setOpenId(c.id));
                 return (
-                  <tr key={c.id} className={styles.rowClickable} onClick={() => setOpenId(c.id)}>
+                  <tr
+                    key={c.id}
+                    className={`${styles.rowClickable} ${selectMode && isSelected ? panel.rowSelected : ''}`}
+                    onClick={open}
+                  >
+                    {selectMode && (
+                      <td className={panel.checkCell}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleOne(c.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Sélectionner ${fullName(c) || c.email}`}
+                        />
+                      </td>
+                    )}
                     <td className={styles.cellFull}>
                       <button
                         type="button"
                         className={styles.rowLink}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setOpenId(c.id);
+                          open();
                         }}
                       >
                         {fullName(c) || '—'}
@@ -258,11 +433,34 @@ export default function CandidaturesPanel({
       )}
 
       {importOpen && (
-        <ImportDialog
-          getIdToken={getIdToken}
-          onClose={() => setImportOpen(false)}
-          onImported={onImported}
-        />
+        <ImportCandidaturesDialog onClose={() => setImportOpen(false)} onImported={onImported} />
+      )}
+
+      {confirmOpen && selectedRows.length > 0 && (
+        <ConfirmDialog
+          title={`Supprimer ${selectedRows.length} candidature${selectedRows.length > 1 ? 's' : ''} ?`}
+          confirmLabel={`Supprimer définitivement (${selectedRows.length})`}
+          danger
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={deleteSelected}
+        >
+          <p>
+            {selectedRows.length > 1 ? 'Ces candidatures seront supprimées' : 'Cette candidature sera supprimée'}{' '}
+            <strong>définitivement</strong> :
+          </p>
+          <ul className={panel.deleteList}>
+            {selectedRows.slice(0, 5).map((c) => (
+              <li key={c.id}>
+                <strong>{fullName(c) || '—'}</strong> <span>{c.email}</span>
+              </li>
+            ))}
+            {selectedRows.length > 5 && <li>… et {selectedRows.length - 5} autre{selectedRows.length - 5 > 1 ? 's' : ''}</li>}
+          </ul>
+          <p>
+            Les entretiens déjà réservés seront annulés (créneaux libérés) et les décisions de délibération
+            associées supprimées. Les candidats pourront redéposer une candidature.
+          </p>
+        </ConfirmDialog>
       )}
 
       {opened && (
@@ -322,7 +520,7 @@ export default function CandidaturesPanel({
               <dt>Disponibilité formations</dt>
               <dd>{opened.participationFormations || '—'}</dd>
             </div>
-            <div><dt>Autre engagement</dt><dd>{opened.autreEngagement === 'oui' ? 'Oui' : 'Non'}</dd></div>
+            <div><dt>Autre engagement</dt><dd>{formatEngagement(opened.autreEngagement)}</dd></div>
             <div><dt>Soumise le</dt><dd>{formatDateTime(opened.createdAt)}</dd></div>
             <div><dt>Dernière mise à jour</dt><dd>{formatDateTime(opened.updatedAt)}</dd></div>
           </dl>
@@ -341,7 +539,7 @@ export default function CandidaturesPanel({
             <h3>Domaine à développer</h3>
             <p>{opened.domaine || '—'}</p>
           </div>
-          {opened.remarques && (
+          {opened.remarques && opened.remarques !== MISSING && (
             <div className={styles.textBlock}>
               <h3>Remarques</h3>
               <p>{opened.remarques}</p>

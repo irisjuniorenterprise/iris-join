@@ -5,6 +5,13 @@
 // dépend ni d'Excel ni de Firebase — il reçoit des cellules déjà converties
 // en texte et applique EXACTEMENT le même schéma que le formulaire public
 // (candidatureSchema), pour que les données importées soient identiques.
+//
+// Deux formats sont pris en charge par la route d'import :
+//   1. le MODÈLE (15 colonnes, feuille « Candidatures ») → parseImportRow ;
+//   2. le REGISTRE des candidats d'IRIS JE (10 colonnes : Prénom, Nom, CIN,
+//      E-mail, Num de téléphone, Date de naissance, Adresse, Niveau d'étude,
+//      Nationalité, Département) → lib/candidature-excel.ts (lecture) puis
+//      buildRegistreCandidature (validation) en bas de ce fichier.
 
 import { z } from 'zod';
 import {
@@ -19,6 +26,8 @@ import {
   type CandidatureFormData,
 } from './candidature';
 import { normalizeDepartment, type DepartmentKey } from './interview';
+// Import de TYPE uniquement : ce module reste pur (aucune dépendance à exceljs).
+import type { ImportedCandidate } from './candidature-excel';
 
 export const IMPORT_SHEET_NAME = 'Candidatures';
 export const IMPORT_MAX_ROWS = 500;
@@ -249,4 +258,119 @@ export function parseImportRow(cells: Partial<Record<ImportKey, string>>): Parse
     data: errors.length === 0 && parsed.success ? parsed.data : null,
     errors,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Format « registre » (fichier Excel des candidats d'IRIS JE)          */
+/* ------------------------------------------------------------------ */
+
+/** Valeur écrite à la place d'une donnée absente du registre. */
+export const MISSING_VALUE = '-';
+
+/**
+ * Candidature issue du registre. Le registre ne contient PAS les réponses
+ * du questionnaire du formulaire public (motivation, niveaux de langue,
+ * source…) ni toujours le CIN, la date de naissance, etc. Pour que chaque
+ * fiche du tableau de bord soit complète et lisible, toute valeur absente
+ * est remplacée par un tiret (MISSING_VALUE) — jamais par une valeur
+ * inventée. Seul le département reste absent s'il est inconnu : le système
+ * de créneaux le lit et un tiret y serait traité comme invalide.
+ */
+export type RegistreCandidature = {
+  nomPrenom: string;
+  telephone: string;
+  filiere: string;
+  niveauEtudes: string;
+  /** Département unique lu par le système de créneaux (voir lib/slots-store.ts). */
+  departement?: DepartmentKey;
+  /** Liste classée (ici : au plus le département du registre). */
+  departements: DepartmentKey[];
+  cin: string;
+  /** « AAAA-MM-JJ » ou tiret. */
+  dateNaissance: string;
+  adresse: string;
+  nationalite: string;
+  // Questionnaire du formulaire public : absent du registre → tirets.
+  sourceConnaissance: string;
+  niveauFrancais: string;
+  niveauAnglais: string;
+  participationFormations: string;
+  autreEngagement: string;
+  organisationTemps: string;
+  motivation: string;
+  domaine: string;
+  remarques: string;
+};
+
+export type RegistreRow = {
+  email: string;
+  data: RegistreCandidature | null;
+  /** Bloquantes : la ligne n'est pas importée. */
+  errors: string[];
+  /** Informatives : la ligne est importée malgré une donnée manquante ou corrigée. */
+  warnings: string[];
+};
+
+export type RegistreOptions = {
+  /**
+   * Importer aussi les candidats SANS département reconnu. Par défaut non :
+   * un candidat sans département ne voit aucun créneau d'entretien
+   * (« département invalide ») et ne peut pas renvoyer sa candidature
+   * (une seule par e-mail) — il serait bloqué.
+   */
+  allowNoDepartment?: boolean;
+};
+
+const NO_DEPARTMENT_WARNING = /^Département (manquant|inconnu)/;
+
+const orDash = (value: string | null | undefined): string => value?.trim() || MISSING_VALUE;
+
+export function buildRegistreCandidature(
+  candidate: ImportedCandidate,
+  options: RegistreOptions = {},
+): RegistreRow {
+  const errors: string[] = [];
+  let warnings = [...candidate.warnings];
+
+  // Le nom est repris tel quel dans les e-mails : mêmes règles que le formulaire public.
+  const name = candidatureSchema.shape.nomPrenom.safeParse(candidate.nomPrenom);
+  if (!name.success) {
+    errors.push(`Nom et prénom : ${name.error.issues[0]?.message ?? 'invalide'}`);
+  }
+
+  if (!candidate.departement) {
+    if (!options.allowNoDepartment) {
+      errors.push(
+        'Département : manquant ou inconnu (sans département, le candidat ne pourrait pas réserver d’entretien)',
+      );
+      // L'erreur ci-dessus remplace l'avertissement équivalent.
+      warnings = warnings.filter((w) => !NO_DEPARTMENT_WARNING.test(w));
+    }
+  }
+
+  if (errors.length > 0) return { email: candidate.email, data: null, errors, warnings };
+
+  const data: RegistreCandidature = {
+    nomPrenom: name.success ? name.data : candidate.nomPrenom,
+    telephone: orDash(candidate.telephone),
+    filiere: orDash(candidate.filiere),
+    niveauEtudes: orDash(candidate.niveauEtudes),
+    departements: candidate.departement ? [candidate.departement] : [],
+    cin: orDash(candidate.cin),
+    dateNaissance: orDash(candidate.dateNaissance),
+    adresse: orDash(candidate.adresse),
+    nationalite: orDash(candidate.nationalite),
+    sourceConnaissance: MISSING_VALUE,
+    niveauFrancais: MISSING_VALUE,
+    niveauAnglais: MISSING_VALUE,
+    participationFormations: MISSING_VALUE,
+    autreEngagement: MISSING_VALUE,
+    organisationTemps: MISSING_VALUE,
+    motivation: MISSING_VALUE,
+    domaine: MISSING_VALUE,
+    remarques: MISSING_VALUE,
+  };
+  if (candidate.departement) data.departement = candidate.departement;
+
+  return { email: candidate.email, data, errors, warnings };
 }
