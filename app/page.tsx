@@ -80,12 +80,12 @@ export default function HomePage() {
                 <span className="hero-meta-label">départements ouverts</span>
               </div>
               <div className="hero-meta-item">
-                <span className="hero-meta-value">15 min</span>
+                <span className="hero-meta-value">5 min</span>
                 <span className="hero-meta-label">pour candidater</span>
               </div>
               <div className="hero-meta-item">
-                <span className="hero-meta-value">48h</span>
-                <span className="hero-meta-label">délai de réponse moyen</span>
+                <span className="hero-meta-value">30 s</span>
+                <span className="hero-meta-label">pour réserver un entretien</span>
               </div>
             </div>
           </div>
@@ -136,7 +136,7 @@ export default function HomePage() {
               <h3>Candidature en ligne</h3>
               <p>
                 Renseignez votre profil et votre motivation pour le
-                département de votre choix. Quinze minutes suffisent.
+                département de votre choix. Cinq minutes suffisent.
               </p>
               <span className="journey-connector" aria-hidden="true">
                 <Icons.ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} />
@@ -158,7 +158,7 @@ export default function HomePage() {
               <h3>Entretien &amp; décision</h3>
               <p>
                 Rencontrez l&rsquo;équipe, échangez sur vos motivations, et
-                recevez la décision sous 48h en moyenne.
+                recevez la décision le plus rapidement possible.
               </p>
             </div>
           </div>
@@ -229,7 +229,7 @@ export default function HomePage() {
             Prêt(e) à postuler&nbsp;?
           </h2>
           <p className="hero-lead" style={{ textAlign: 'center', margin: '0 auto' }}>
-            La candidature prend 15 minutes. La réservation d&rsquo;entretien, 30 secondes de plus.
+            La candidature prend 5 minutes. La réservation d&rsquo;entretien, 30 secondes de plus.
           </p>
           <div className="hero-actions" style={{ justifyContent: 'center' }}>
             <Link href="/candidature" className="btn btn-primary">
