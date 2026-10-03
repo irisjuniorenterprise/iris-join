@@ -2,6 +2,7 @@
 // components/admin/dialogs.tsx
 //
 // Dialogues de l'espace administration :
+//  - QuickBookDialog     : réserver un entretien pour un candidat (raccourci Ctrl+1) ;
 //  - MoveSlotDialog      : attribuer / changer le créneau d'un candidat ;
 //  - SlotFormDialog      : modifier date / heure / département / mode d'un créneau ;
 //  - GenerateSlotsDialog : ajouter des créneaux (un seul ou en série) ;
@@ -11,7 +12,7 @@
 // l'entretien est le rappel automatique 24h avant (voir lib/email.ts et
 // app/api/cron/reminders/route.ts), donc il n'y a plus de case
 // « prévenir par e-mail » nulle part ici.
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Icons } from '@/components/icons/Icons';
 import {
   DEPARTMENT_KEYS,
@@ -24,8 +25,17 @@ import {
   type InterviewMode,
 } from '@/lib/interview';
 import Modal from './Modal';
-import type { AdminSlot } from './shared';
+import {
+  DeptBadge,
+  deptStyle,
+  emailKey,
+  fold,
+  fullName,
+  type AdminSlot,
+  type Candidature,
+} from './shared';
 import styles from './admin.module.css';
+import qb from './QuickBookDialog.module.css';
 
 /* ------------------------------------------------------------------ */
 /* Case à cocher générique                                              */
@@ -76,6 +86,367 @@ function ModeSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Réserver des entretiens (raccourci Ctrl+1)                           */
+/* ------------------------------------------------------------------ */
+
+export type QuickBookAssignment = { email: string; slotId: string };
+
+type QuickBookDialogProps = {
+  candidatures: Candidature[];
+  slots: AdminSlot[];
+  bookingByEmail: Map<string, AdminSlot>;
+  onClose: () => void;
+  /** Enregistre toutes les attributions ; renvoie les e-mails dont l'attribution a échoué. */
+  onConfirm: (assignments: QuickBookAssignment[]) => Promise<string[]>;
+};
+
+type DayGroup = { date: string; slots: AdminSlot[] };
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  const first = parts[0].charAt(0);
+  const last = parts.length > 1 ? parts[parts.length - 1].charAt(0) : '';
+  return (first + last).toUpperCase();
+}
+
+export function QuickBookDialog({
+  candidatures,
+  slots,
+  bookingByEmail,
+  onClose,
+  onConfirm,
+}: QuickBookDialogProps) {
+  const [query, setQuery] = useState('');
+  // Sélections en attente : e-mail du candidat → id du créneau choisi.
+  // Un candidat a au plus un créneau ; un créneau n'est choisi que par un candidat.
+  const [picks, setPicks] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  const searchRef = useRef<HTMLInputElement>(null);
+  const busyRef = useRef(false);
+  const closeRef = useRef(onClose);
+  busyRef.current = busy;
+  closeRef.current = onClose;
+
+  // Ctrl+1 (ou Cmd+1) referme la fenêtre, sauf pendant l'enregistrement.
+  // L'ouverture est gérée par le tableau de bord (AdminDashboard).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
+      if (e.code !== 'Digit1' && e.code !== 'Numpad1') return;
+      e.preventDefault();
+      if (!busyRef.current) closeRef.current();
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // Curseur directement dans la recherche à l'ouverture.
+  useEffect(() => {
+    searchRef.current?.focus();
+  }, []);
+
+  const slotById = useMemo(() => new Map(slots.map((s) => [s.id, s])), [slots]);
+  const candidateByEmail = useMemo(
+    () => new Map(candidatures.map((c) => [emailKey(c.email), c])),
+    [candidatures],
+  );
+
+  // Sélections encore valides (le créneau existe toujours et est libre).
+  // Après un rechargement des données, une sélection déjà enregistrée ou
+  // devenue impossible disparaît d'elle-même.
+  const validPicks = useMemo(() => {
+    const out: { email: string; candidate: Candidature; slot: AdminSlot }[] = [];
+    for (const [email, slotId] of Object.entries(picks)) {
+      const candidate = candidateByEmail.get(email);
+      const slot = slotById.get(slotId);
+      if (candidate && slot && !slot.booked) out.push({ email, candidate, slot });
+    }
+    return out.sort((x, y) => `${x.slot.date} ${x.slot.time}`.localeCompare(`${y.slot.date} ${y.slot.time}`));
+  }, [picks, candidateByEmail, slotById]);
+
+  // Créneaux déjà choisis, avec le candidat qui les a pris.
+  const takenBy = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of validPicks) map.set(p.slot.id, p.email);
+    return map;
+  }, [validPicks]);
+
+  // Créneaux LIBRES regroupés par département puis par jour.
+  const freeByDepartment = useMemo(() => {
+    const byDept = new Map<DepartmentKey, Map<string, AdminSlot[]>>();
+    for (const slot of slots) {
+      if (slot.booked) continue;
+      const days = byDept.get(slot.department) ?? new Map<string, AdminSlot[]>();
+      days.set(slot.date, [...(days.get(slot.date) ?? []), slot]);
+      byDept.set(slot.department, days);
+    }
+    const result = new Map<DepartmentKey, DayGroup[]>();
+    for (const [dept, days] of byDept) {
+      result.set(
+        dept,
+        Array.from(days.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, list]) => ({
+            date,
+            slots: [...list].sort((x, y) => x.time.localeCompare(y.time)),
+          })),
+      );
+    }
+    return result;
+  }, [slots]);
+
+  // Candidats sans entretien d'abord, puis ordre alphabétique.
+  const sorted = useMemo(
+    () =>
+      [...candidatures].sort((a, b) => {
+        const aHas = bookingByEmail.has(emailKey(a.email)) ? 1 : 0;
+        const bHas = bookingByEmail.has(emailKey(b.email)) ? 1 : 0;
+        if (aHas !== bHas) return aHas - bHas;
+        return fullName(a).localeCompare(fullName(b), 'fr');
+      }),
+    [candidatures, bookingByEmail],
+  );
+
+  const filtered = useMemo(() => {
+    const q = fold(query.trim());
+    if (!q) return sorted;
+    return sorted.filter((c) => fold(`${c.nomPrenom} ${c.email} ${c.telephone}`).includes(q));
+  }, [sorted, query]);
+
+  /** Clic sur une heure : sélectionne, change ou (si déjà choisie) désélectionne. */
+  function togglePick(email: string, slotId: string) {
+    setPicks((prev) => {
+      const next = { ...prev };
+      if (next[email] === slotId) {
+        delete next[email];
+      } else {
+        next[email] = slotId;
+      }
+      return next;
+    });
+  }
+
+  function removePick(email: string) {
+    setPicks((prev) => {
+      const next = { ...prev };
+      delete next[email];
+      return next;
+    });
+  }
+
+  async function submit() {
+    if (validPicks.length === 0) return;
+    setBusy(true);
+    try {
+      const failed = await onConfirm(validPicks.map((p) => ({ email: p.candidate.email, slotId: p.slot.id })));
+      // On ne garde que les attributions qui ont échoué, pour pouvoir les corriger.
+      const failedKeys = new Set(failed.map(emailKey));
+      setPicks((prev) => Object.fromEntries(Object.entries(prev).filter(([email]) => failedKeys.has(email))));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const count = validPicks.length;
+
+  return (
+    <Modal
+      title="Réserver des entretiens"
+      subtitle="Choisissez un créneau sous chaque candidat : il disparaît des autres candidats jusqu'à sa désélection."
+      onClose={onClose}
+      busy={busy}
+      wide
+      className={qb.dialog}
+      footer={
+        <>
+          <button type="button" className="btn btn-outline" onClick={onClose} disabled={busy}>
+            Fermer
+          </button>
+          <button type="button" className="btn btn-primary" onClick={submit} disabled={count === 0 || busy}>
+            {busy
+              ? 'Enregistrement…'
+              : count === 0
+                ? 'Valider'
+                : `Valider ${count} réservation${count > 1 ? 's' : ''}`}
+          </button>
+        </>
+      }
+    >
+      <div className={qb.searchWrap}>
+        <Icons.Search size={17} />
+        <input
+          ref={searchRef}
+          type="search"
+          className={qb.search}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Rechercher un candidat (nom, e-mail, téléphone)…"
+          aria-label="Rechercher un candidat"
+          disabled={busy}
+          autoComplete="off"
+        />
+        <span className={qb.searchCount} aria-live="polite">
+          {filtered.length} / {candidatures.length}
+        </span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className={qb.empty}>Aucun candidat ne correspond à cette recherche.</p>
+      ) : (
+        <div className={qb.list} role="list" aria-label="Candidats et créneaux libres">
+          {filtered.map((c) => {
+            const key = emailKey(c.email);
+            const booking = bookingByEmail.get(key) ?? null;
+            const pickedId = validPicks.find((p) => p.email === key)?.slot.id ?? null;
+
+            // Créneaux du département, sans ceux déjà choisis par un AUTRE candidat.
+            const groups = (c.department ? (freeByDepartment.get(c.department) ?? []) : [])
+              .map((group) => ({
+                ...group,
+                slots: group.slots.filter((slot) => {
+                  const owner = takenBy.get(slot.id);
+                  return !owner || owner === key;
+                }),
+              }))
+              .filter((group) => group.slots.length > 0);
+
+            return (
+              <article
+                key={c.id}
+                role="listitem"
+                className={`${qb.card} ${pickedId ? qb.cardSelected : ''}`.trim()}
+                style={deptStyle(c.department)}
+              >
+                <div className={qb.cardHead}>
+                  <span className={qb.avatar} aria-hidden="true">
+                    {initialsOf(fullName(c))}
+                  </span>
+                  <div className={qb.identity}>
+                    <p className={qb.name}>{fullName(c)}</p>
+                    <p className={qb.email}>{c.email}</p>
+                  </div>
+                  <div className={qb.headMeta}>
+                    <DeptBadge department={c.department} fallback={c.departement} />
+                    {booking ? (
+                      <span className={`${qb.state} ${qb.stateBooked}`}>
+                        <Icons.Check size={12} />
+                        {getDayParts(booking.date).dayNumber} {getDayParts(booking.date).monthShort} ·{' '}
+                        {booking.time}
+                      </span>
+                    ) : (
+                      <span className={`${qb.state} ${qb.stateNone}`}>Sans entretien</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className={qb.slots}>
+                  {!c.department ? (
+                    <p className={qb.noSlots}>
+                      Département invalide : impossible de proposer des créneaux.
+                    </p>
+                  ) : groups.length === 0 ? (
+                    <p className={qb.noSlots}>
+                      Aucun créneau disponible en {DEPARTMENT_LABELS[c.department]} (tous libres
+                      déjà choisis ou réservés). Ajoutez-en depuis l&rsquo;onglet « Créneaux ».
+                    </p>
+                  ) : (
+                    <>
+                      <p className={qb.slotsLabel}>
+                        {booking ? 'Changer pour un créneau libre' : 'Créneaux libres'} ·{' '}
+                        {DEPARTMENT_LABELS[c.department]}
+                      </p>
+                      {groups.map((group) => {
+                        const day = getDayParts(group.date);
+                        return (
+                          <div key={group.date} className={qb.dayRow}>
+                            <span className={qb.dayLabel}>
+                              {day.weekdayShort} {day.dayNumber}
+                              <small>{day.monthShort}</small>
+                            </span>
+                            <div className={qb.times}>
+                              {group.slots.map((slot) => {
+                                const isPicked = pickedId === slot.id;
+                                return (
+                                  <button
+                                    key={slot.id}
+                                    type="button"
+                                    className={qb.slot}
+                                    aria-pressed={isPicked}
+                                    title={isPicked ? 'Cliquer pour désélectionner' : undefined}
+                                    aria-label={`${fullName(c)} : ${formatDayLong(slot.date)} à ${slot.time}, ${INTERVIEW_MODE_LABELS[slot.mode]}${isPicked ? ' (sélectionné, cliquer pour désélectionner)' : ''}`}
+                                    onClick={() => togglePick(key, slot.id)}
+                                    disabled={busy}
+                                  >
+                                    {slot.time}
+                                    <span className={qb.slotMode}>{INTERVIEW_MODE_LABELS[slot.mode]}</span>
+                                    {isPicked && <Icons.X size={12} />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {count > 0 ? (
+        <div className={qb.pending} role="status">
+          <p className={qb.pendingTitle}>
+            {count} réservation{count > 1 ? 's' : ''} en attente
+          </p>
+          <ul className={qb.pendingList}>
+            {validPicks.map(({ email, candidate, slot }) => {
+              const previous = bookingByEmail.get(email);
+              return (
+                <li key={email} className={qb.pendingItem}>
+                  <span>
+                    <strong>{fullName(candidate)}</strong> · {formatDayLong(slot.date)} à {slot.time} (
+                    {INTERVIEW_MODE_LABELS[slot.mode]})
+                    {previous && (
+                      <span className={qb.pendingNote}>
+                        {' '}
+                        — remplace {getDayParts(previous.date).dayNumber} {getDayParts(previous.date).monthShort} à{' '}
+                        {previous.time}
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    className={qb.pendingRemove}
+                    onClick={() => removePick(email)}
+                    disabled={busy}
+                    aria-label={`Désélectionner le créneau de ${fullName(candidate)}`}
+                  >
+                    <Icons.X size={14} />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : (
+        <div className={`${qb.summary} ${qb.summaryHint}`}>
+          <Icons.Calendar size={18} />
+          <span>
+            Cliquez sur une heure pour la sélectionner (re-cliquez pour désélectionner), puis validez.{' '}
+            <kbd className={qb.hintKey}>Ctrl</kbd> + <kbd className={qb.hintKey}>1</kbd> ferme cette fenêtre.
+          </span>
+        </div>
+      )}
+    </Modal>
   );
 }
 

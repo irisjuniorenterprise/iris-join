@@ -1,0 +1,432 @@
+/* components/admin/QuickBookDialog.module.css
+ *
+ * Styles de la fenêtre « Réserver un entretien » (raccourci Ctrl+1).
+ * Réutilise les variables de charte de globals.css. --dept / --dept-rgb
+ * sont posées en ligne (deptStyle) sur chaque carte candidat.
+ */
+
+@media (min-width: 900px) {
+  .dialog.dialog {
+    max-width: 860px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Recherche                                                            */
+/* ------------------------------------------------------------------ */
+
+.searchWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchWrap svg {
+  position: absolute;
+  left: 0.95rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search {
+  width: 100%;
+  padding: 0.75rem 6rem 0.75rem 2.6rem;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.93rem;
+  color: var(--text-primary);
+}
+
+.search:focus-visible {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(90, 184, 222, 0.2);
+}
+
+.searchCount {
+  position: absolute;
+  right: 0.9rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: rgba(26, 57, 105, 0.08);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--primary);
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Liste des candidats                                                  */
+/* ------------------------------------------------------------------ */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: min(52vh, 520px);
+  padding: 0.15rem 0.35rem 0.15rem 0.15rem;
+  margin: 0 -0.35rem 0 -0.15rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.95rem 1rem 1rem;
+  border-radius: 16px;
+  border: 1.5px solid var(--border);
+  border-left: 4px solid var(--dept, var(--border));
+  background: var(--surface);
+  transition:
+    border-color var(--t-fast),
+    box-shadow var(--t-fast),
+    background var(--t-fast);
+}
+
+.card:hover {
+  box-shadow: 0 8px 22px var(--shadow);
+}
+
+.cardSelected,
+.cardSelected:hover {
+  border-color: var(--primary);
+  border-left-color: var(--dept, var(--primary));
+  background: var(--surface-card-alt);
+  box-shadow: 0 0 0 3px rgba(26, 57, 105, 0.1);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(var(--dept-rgb, 107, 114, 128), 0.14);
+  color: var(--dept, var(--primary));
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.email {
+  margin: 0.1rem 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.headMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.stateNone {
+  background: rgba(255, 102, 51, 0.12);
+  color: #c2410c;
+}
+
+.stateBooked {
+  background: rgba(34, 197, 94, 0.13);
+  color: #15803d;
+}
+
+/* ------------------------------------------------------------------ */
+/* Créneaux libres                                                      */
+/* ------------------------------------------------------------------ */
+
+.slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.slotsLabel {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.dayRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.dayLabel {
+  flex-shrink: 0;
+  width: 92px;
+  padding-top: 0.42rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.dayLabel small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.times {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.38rem 0.75rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font-display);
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast),
+    background var(--t-fast),
+    color var(--t-fast),
+    transform var(--t-fast);
+}
+
+.slot:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(90, 184, 222, 0.08);
+}
+
+.slot:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(90, 184, 222, 0.35);
+}
+
+.slot:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.slot[aria-pressed='true'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+.slotMode {
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.noSlots {
+  margin: 0;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  background: var(--surface-hover);
+  font-size: 0.83rem;
+  color: var(--text-secondary);
+}
+
+.empty {
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  border-radius: 16px;
+  border: 1.5px dashed var(--border);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Récapitulatif                                                        */
+/* ------------------------------------------------------------------ */
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  background: rgba(26, 57, 105, 0.07);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--primary);
+}
+
+.summary svg {
+  flex-shrink: 0;
+}
+
+.summaryHint {
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+}
+
+.hintKey {
+  padding: 0.05rem 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ */
+/* Réservations en attente                                              */
+/* ------------------------------------------------------------------ */
+
+.pending {
+  padding: 0.8rem 1rem;
+  border-radius: 12px;
+  border: 1.5px solid rgba(26, 57, 105, 0.18);
+  background: rgba(26, 57, 105, 0.05);
+}
+
+.pendingTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+.pendingList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 150px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.pendingItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: var(--primary);
+}
+
+.pendingNote {
+  color: var(--text-secondary);
+}
+
+.pendingRemove {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--t-fast),
+    color var(--t-fast);
+}
+
+.pendingRemove:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.pendingRemove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .list {
+    max-height: 48vh;
+  }
+
+  .cardHead {
+    flex-wrap: wrap;
+  }
+
+  .headMeta {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .dayRow {
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .dayLabel {
+    width: auto;
+    padding-top: 0;
+  }
+
+  .dayLabel small {
+    display: inline;
+    margin-left: 0.35rem;
+  }
+}

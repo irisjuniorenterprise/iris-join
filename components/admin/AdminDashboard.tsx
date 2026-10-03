@@ -21,7 +21,13 @@ import DeliberationPanel from './DeliberationPanel';
 import SlotsPanel from './SlotsPanel';
 import SettingsPanel from './SettingsPanel';
 import type { ServiceKey, ServiceWindow, ServiceWindows } from '@/lib/service-window';
-import { ConfirmDialog, GenerateSlotsDialog, MoveSlotDialog, SlotFormDialog } from './dialogs';
+import {
+  ConfirmDialog,
+  GenerateSlotsDialog,
+  MoveSlotDialog,
+  QuickBookDialog,
+  SlotFormDialog,
+} from './dialogs';
 import {
   adminRequest,
   deptStyle,
@@ -119,6 +125,22 @@ export default function AdminDashboard() {
     }
   }, [status, tab, windows, loadSettings]);
 
+  // Raccourci Ctrl+1 (Cmd+1 sur Mac) : ouvre la fenêtre « Réserver un entretien ».
+  // La fermeture par le même raccourci est gérée dans QuickBookDialog.
+  // On teste `code` (position physique de la touche) pour que ça marche aussi
+  // sur un clavier AZERTY, où la touche « 1 » produit « & » sans Maj.
+  useEffect(() => {
+    if (status !== 'ready') return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
+      if (e.code !== 'Digit1' && e.code !== 'Numpad1') return;
+      e.preventDefault();
+      setDialog((prev) => (prev === null ? { type: 'quick-book' } : prev));
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [status]);
+
   async function saveServiceWindow(service: ServiceKey, window: ServiceWindow): Promise<boolean> {
     const res = await call<{ windows: ServiceWindows }>('/api/admin/settings', {
       method: 'PUT',
@@ -191,10 +213,69 @@ export default function AdminDashboard() {
 
   const closeDialog = () => setDialog(null);
 
+  /**
+   * Enregistre plusieurs attributions de créneaux (fenêtre Ctrl+1), une par
+   * une. Renvoie les e-mails dont l'attribution a échoué ; la fenêtre ne se
+   * ferme que si tout a réussi.
+   */
+  async function assignMany(assignments: { email: string; slotId: string }[]): Promise<string[]> {
+    const failed: string[] = [];
+    let created = 0;
+    let moved = 0;
+    let firstError = '';
+
+    for (const { email, slotId } of assignments) {
+      const res = await call<MutationResult>('/api/admin/reservations', {
+        method: 'POST',
+        body: { action: 'assign', slotId, email },
+      });
+      if (!res.ok || !res.data?.ok) {
+        failed.push(email);
+        if (!firstError) firstError = res.data?.message ?? 'Action impossible.';
+      } else if (res.data.moved) {
+        moved += 1;
+      } else {
+        created += 1;
+      }
+    }
+
+    const done = created + moved;
+    if (done > 0) {
+      showToast(
+        done === 1
+          ? moved ? 'Créneau changé.' : 'Entretien réservé.'
+          : `${done} entretiens enregistrés.`,
+        'success',
+      );
+    }
+    if (failed.length > 0) {
+      showToast(
+        `${failed.length} réservation${failed.length > 1 ? 's' : ''} en échec : ${firstError}`,
+        'error',
+      );
+    }
+
+    await load(true);
+    if (failed.length === 0) setDialog(null);
+    return failed;
+  }
+
   /* ------------------------------ Dialogues ------------------------------ */
 
   let dialogNode: React.ReactNode = null;
   const allSlots = data?.slots ?? [];
+
+  if (dialog?.type === 'quick-book') {
+    dialogNode = (
+      <QuickBookDialog
+        candidatures={data?.candidatures ?? []}
+        slots={allSlots}
+        bookingByEmail={bookingByEmail}
+        onClose={closeDialog}
+        onConfirm={assignMany}
+      />
+    );
+  }
 
   if (dialog?.type === 'move') {
     const candidature = candidatureByEmail.get(emailKey(dialog.email));
@@ -397,6 +478,14 @@ export default function AdminDashboard() {
           Connecté en tant que <strong>{data.admin}</strong>
         </p>
         <div className={styles.topActions}>
+          <button
+            type="button"
+            className={`btn btn-primary ${styles.compact}`}
+            onClick={() => setDialog((prev) => prev ?? { type: 'quick-book' })}
+            title="Raccourci clavier : Ctrl+1"
+          >
+            Réserver un entretien (Ctrl+1)
+          </button>
           <button
             type="button"
             className={`btn btn-outline ${styles.compact}`}

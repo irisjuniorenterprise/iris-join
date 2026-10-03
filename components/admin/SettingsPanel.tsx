@@ -103,6 +103,8 @@ function ServiceWindowCard({
           <input
             type="datetime-local"
             value={opensAt}
+            max={closesAt || undefined}
+            aria-invalid={invalidRange}
             onChange={(e) => setOpensAt(e.target.value)}
           />
         </label>
@@ -111,6 +113,8 @@ function ServiceWindowCard({
           <input
             type="datetime-local"
             value={closesAt}
+            min={opensAt || undefined}
+            aria-invalid={invalidRange}
             onChange={(e) => setClosesAt(e.target.value)}
           />
         </label>
@@ -124,7 +128,11 @@ function ServiceWindowCard({
       {invalidRange && (
         <div className={styles.infoBox} role="alert">
           <Icons.Alert size={18} />
-          <span>La date de fermeture doit être après la date d&rsquo;ouverture.</span>
+          <span>
+            {opensAt === closesAt
+              ? 'La fermeture ne peut pas avoir lieu à la même minute que l’ouverture.'
+              : 'La date et l’heure de fermeture doivent être strictement après la date et l’heure d’ouverture.'}
+          </span>
         </div>
       )}
 

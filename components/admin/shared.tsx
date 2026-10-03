@@ -55,6 +55,7 @@ export type Overview = {
 /** Demandes d'ouverture de dialogue émises par les panneaux vers le tableau de bord. */
 export type DialogRequest =
   | { type: 'move'; email: string }
+  | { type: 'quick-book' }
   | { type: 'release'; slotId: string }
   | { type: 'edit-slot'; slotId: string }
   | { type: 'delete-slot'; slotId: string }
