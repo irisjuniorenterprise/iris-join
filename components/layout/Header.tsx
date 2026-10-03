@@ -9,7 +9,7 @@ export default function Header() {
     <header className="site-header">
       <div className="site-header-inner">
         <Link href="/" className="brand">
-          <Image src="/logo-join.svg" alt="IRIS Junior Entreprise" width={75} height={75} />
+          <Image src="/logo-join.svg" alt="IRIS Junior Entreprise" width={100} height={100} />
           {/* <span className="brand-mark">IRIS JOIN</span> */}
         </Link>
         <a href={PARENT_SITE_URL} className="back-to-site">
