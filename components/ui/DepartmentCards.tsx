@@ -191,26 +191,27 @@ export default function DepartmentCards() {
               onKeyDown={(e) => onKeyDown(d.key, e)}
             >
               <div className={styles.inner}>
-                {/* Face avant */}
-                <button
-                  type="button"
-                  className={`${styles.face} ${styles.front}`}
-                  ref={(el) => {
-                    frontRefs.current[d.key] = el;
-                  }}
-                  aria-expanded={isFlipped}
-                  aria-label={`${d.label} : afficher les missions du département`}
-                  tabIndex={isFlipped ? -1 : 0}
-                >
-                  <span className={styles.iconTile}>
+                {/* Face avant : le titre est un vrai <h3> (lisible par les lecteurs d'écran
+                    et les tests), le bouton « Voir les missions » reste l'élément focusable. */}
+                <div className={`${styles.face} ${styles.front}`}>
+                  <span className={styles.iconTile} aria-hidden="true">
                     <Icon size={34} />
                   </span>
-                  <span className={styles.title}>{d.label}</span>
-                  <span className={styles.more}>
+                  <h3 className={styles.title}>{d.label}</h3>
+                  <button
+                    type="button"
+                    className={styles.more}
+                    ref={(el) => {
+                      frontRefs.current[d.key] = el;
+                    }}
+                    aria-expanded={isFlipped}
+                    aria-label={`Afficher les missions du département ${d.label}`}
+                    tabIndex={isFlipped ? -1 : 0}
+                  >
                     <FlipIcon size={14} />
                     Voir les missions
-                  </span>
-                </button>
+                  </button>
+                </div>
 
                 {/* Face arrière */}
                 <div className={`${styles.face} ${styles.back}`} aria-hidden={!isFlipped}>
