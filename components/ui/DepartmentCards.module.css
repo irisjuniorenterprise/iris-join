@@ -1,0 +1,418 @@
+/* components/ui/DepartmentCards.module.css
+ *
+ * Cartes départements à retournement 3D (axe vertical).
+ * Les couleurs de chaque département sont portées par des variables
+ * (--bg-front, --bg-back, --fg-front, --fg-back, --cta-bg, --cta-fg).
+ */
+
+/* ------------------------------------------------------------------ */
+/* Indication d'usage                                                   */
+/* ------------------------------------------------------------------ */
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: -1.5rem 0 1.75rem;
+  padding: 0.5rem 1rem 0.5rem 0.55rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-card-alt);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.hintIcon {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(90, 184, 222, 0.16);
+  color: var(--primary);
+  animation: hintSpin 6s ease-in-out infinite;
+}
+
+.hintTouch {
+  display: none;
+}
+
+@media (hover: none) {
+  .hintHover {
+    display: none;
+  }
+
+  .hintTouch {
+    display: inline;
+  }
+}
+
+@keyframes hintSpin {
+  0%,
+  70%,
+  100% {
+    transform: rotate(0deg);
+  }
+  85% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Grille                                                               */
+/* ------------------------------------------------------------------ */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 1040px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hint {
+    margin-top: -1.75rem;
+    border-radius: 18px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Carte                                                                */
+/* ------------------------------------------------------------------ */
+
+.card {
+  --fg-front: #ffffff;
+  --fg-back: #ffffff;
+
+  position: relative;
+  height: 320px;
+  perspective: 1400px;
+  transition: transform var(--t-base);
+}
+
+.card[data-flipped='true'] {
+  transform: translateY(-4px);
+}
+
+.inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.75s var(--ease-out);
+}
+
+.card[data-flipped='true'] .inner {
+  transform: rotateY(180deg);
+}
+
+/* Petit « coup d'œil » unique à l'arrivée sur la section. */
+.card[data-peek='true']:not([data-flipped='true']) .inner {
+  animation: peek 1.15s var(--ease-out) backwards;
+  animation-delay: calc(var(--i) * 140ms);
+}
+
+@keyframes peek {
+  0% {
+    transform: rotateY(0deg);
+  }
+  35% {
+    transform: rotateY(-28deg);
+  }
+  70% {
+    transform: rotateY(9deg);
+  }
+  100% {
+    transform: rotateY(0deg);
+  }
+}
+
+.face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transition: box-shadow var(--t-base);
+}
+
+.card:hover .face,
+.card[data-flipped='true'] .face {
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+}
+
+/* ------------------------------------------------------------------ */
+/* Face avant                                                           */
+/* ------------------------------------------------------------------ */
+
+.front {
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  padding: 1.5rem 1.25rem 3.4rem;
+  border: 0;
+  background: var(--bg-front);
+  color: var(--fg-front);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+/* Halo décoratif en haut à droite. */
+.front::before {
+  content: '';
+  position: absolute;
+  top: -70px;
+  right: -70px;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22), transparent 68%);
+  pointer-events: none;
+}
+
+.front:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.iconTile {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--tile-border);
+  background: var(--tile-bg);
+  transition:
+    transform var(--t-base),
+    background var(--t-base);
+}
+
+.card:hover .iconTile {
+  transform: scale(1.06);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Deux lignes réservées : tous les titres restent alignés. */
+  min-height: 2.7em;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.more {
+  position: absolute;
+  left: 50%;
+  bottom: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: var(--radius-pill);
+  background: var(--tile-bg);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  opacity: 0.9;
+  transition:
+    opacity var(--t-fast),
+    transform var(--t-base);
+}
+
+.card:hover .more {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-2px);
+}
+
+/* ------------------------------------------------------------------ */
+/* Face arrière                                                         */
+/* ------------------------------------------------------------------ */
+
+.back {
+  gap: 0.85rem;
+  padding: 1.35rem 1.3rem 1.25rem;
+  background: var(--bg-back);
+  color: var(--fg-back);
+  text-align: left;
+  transform: rotateY(180deg);
+}
+
+.backHead {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.backIcon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.backTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: inherit;
+}
+
+.backLabel {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.missions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missions li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.missions li svg {
+  flex-shrink: 0;
+  margin-top: 0.12rem;
+  padding: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: auto;
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius-pill);
+  background: var(--cta-bg);
+  color: var(--cta-fg);
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    transform var(--t-fast),
+    box-shadow var(--t-fast);
+}
+
+.cta svg {
+  transition: transform var(--t-fast);
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+}
+
+.cta:hover svg {
+  transform: translateX(3px);
+}
+
+.cta:focus-visible {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Couleurs par département                                             */
+/* ------------------------------------------------------------------ */
+
+.it {
+  --bg-front: linear-gradient(160deg, #1a3969, #0d2644);
+  --bg-back: linear-gradient(160deg, #0d2644, #15426c);
+  --tile-bg: rgba(255, 255, 255, 0.14);
+  --tile-border: rgba(255, 255, 255, 0.28);
+  --cta-bg: #ff6633;
+  --cta-fg: #ffffff;
+}
+
+.marketing {
+  --bg-front: linear-gradient(160deg, #ff6633, #d9491c);
+  --bg-back: linear-gradient(160deg, #d9491c, #a8340f);
+  --tile-bg: rgba(255, 255, 255, 0.18);
+  --tile-border: rgba(255, 255, 255, 0.34);
+  --cta-bg: #ffffff;
+  --cta-fg: #b93a12;
+}
+
+.etudes {
+  --bg-front: linear-gradient(160deg, #5ab8de, #2f7fa1);
+  --bg-back: linear-gradient(160deg, #2f7fa1, #1f6180);
+  --tile-bg: rgba(255, 255, 255, 0.18);
+  --tile-border: rgba(255, 255, 255, 0.34);
+  --cta-bg: #ffffff;
+  --cta-fg: #1f6180;
+}
+
+.commercial {
+  --bg-front: linear-gradient(160deg, #e0f7fa, #b2e0e6);
+  --bg-back: linear-gradient(160deg, #1a3969, #0d2644);
+  --fg-front: var(--primary);
+  --tile-bg: rgba(26, 57, 105, 0.1);
+  --tile-border: rgba(26, 57, 105, 0.22);
+  --cta-bg: #ff6633;
+  --cta-fg: #ffffff;
+}
+
+/* ------------------------------------------------------------------ */
+/* Mouvement réduit : pas de rotation, simple bascule de faces          */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .hintIcon {
+    animation: none;
+  }
+
+  .card[data-peek='true']:not([data-flipped='true']) .inner {
+    animation: none;
+  }
+}

@@ -4,6 +4,8 @@ import Image from 'next/image';
 import Script from 'next/script';
 import { Icons } from '@/components/icons/Icons';
 import RecruitmentStatus from '@/components/ui/RecruitmentStatus';
+import DepartmentCards from '@/components/ui/DepartmentCards';
+import JourneySteps from '@/components/ui/JourneySteps';
 import { isRecruitmentOpen, daysUntilClose, getRecruitmentWindow } from '@/lib/recruitment';
 import { jobPostingJsonLd } from '@/lib/metadata';
 
@@ -84,8 +86,8 @@ export default function HomePage() {
                 <span className="hero-meta-label">pour candidater</span>
               </div>
               <div className="hero-meta-item">
-                <span className="hero-meta-value">30 s</span>
-                <span className="hero-meta-label">pour réserver un entretien</span>
+                <span className="hero-meta-value">30s</span>
+                <span className="hero-meta-label">pour reserver un entretien</span>
               </div>
             </div>
           </div>
@@ -130,38 +132,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="journey">
-            <div className="journey-step">
-              <span className="journey-step-index">Étape 1</span>
-              <h3>Candidature en ligne</h3>
-              <p>
-                Renseignez votre profil et votre motivation pour le
-                département de votre choix. Cinq minutes suffisent.
-              </p>
-              <span className="journey-connector" aria-hidden="true">
-                <Icons.ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} />
-              </span>
-            </div>
-            <div className="journey-step">
-              <span className="journey-step-index">Étape 2</span>
-              <h3>Réservation d&rsquo;entretien</h3>
-              <p>
-                Choisissez vous-même votre créneau dans l&rsquo;agenda des
-                entretiens, selon vos disponibilités.
-              </p>
-              <span className="journey-connector" aria-hidden="true">
-                <Icons.ChevronDown size={18} style={{ transform: 'rotate(-90deg)' }} />
-              </span>
-            </div>
-            <div className="journey-step">
-              <span className="journey-step-index">Étape 3</span>
-              <h3>Entretien &amp; décision</h3>
-              <p>
-                Rencontrez l&rsquo;équipe, échangez sur vos motivations, et
-                recevez la décision le plus rapidement possible.
-              </p>
-            </div>
-          </div>
+          <JourneySteps />
         </div>
       </section>
 
@@ -172,26 +143,9 @@ export default function HomePage() {
             <p>Choisissez le département qui correspond à vos compétences.</p>
           </div>
 
-          <div className="dept-grid">
-            <div className="dept-card dept-card--it">
-              <h3>IT</h3>
-              <p>Développement web, développement mobile, création de chatbots</p>
-              </div>
-              <div className="dept-card dept-card--marketing">
-                <h3>Marketing</h3>
-                <p>Branding, rebranding, community management</p>
-                </div>
-                <div className="dept-card dept-card--etudes">
-                  <h3>Études</h3>
-                  <p>Études de marché, études de notoriété, études de satisfaction, plans d&rsquo;affaires</p>
-                  </div>
-                  <div className="dept-card dept-card--commercial">
-                    <h3>Développement commercial</h3>
-                    <p>Prospection et acquisition de clients, partenaires et sponsors</p>
-                  </div>
-                </div>
-              </div>
-       </section>
+          <DepartmentCards />
+        </div>
+      </section>
 
       <section>
         <div className="container">

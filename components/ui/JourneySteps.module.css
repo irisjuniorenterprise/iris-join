@@ -1,0 +1,300 @@
+/* components/ui/JourneySteps.module.css
+ *
+ * Parcours candidat : 3 cartes reliées par des chevrons.
+ * --gap pilote l'espacement ET la position des connecteurs.
+ */
+
+.track {
+  --gap: 3rem;
+  --connector: 38px;
+
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (max-width: 860px) {
+  .track {
+    grid-template-columns: 1fr;
+    --gap: 3rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Apparition progressive                                               */
+/* ------------------------------------------------------------------ */
+
+.step {
+  position: relative;
+  transition:
+    opacity 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out);
+  transition-delay: calc(var(--i) * 150ms);
+}
+
+.track[data-phase='hidden'] .step {
+  opacity: 0;
+  transform: translateY(26px);
+}
+
+/* ------------------------------------------------------------------ */
+/* Carte                                                                */
+/* ------------------------------------------------------------------ */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 1.75rem 1.6rem 1.5rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+  transition:
+    transform var(--t-base),
+    box-shadow var(--t-base),
+    border-color var(--t-base);
+}
+
+.card:hover,
+.card:focus-within {
+  transform: translateY(-6px);
+  border-color: rgba(90, 184, 222, 0.55);
+  box-shadow: 0 18px 40px rgba(26, 57, 105, 0.13);
+}
+
+/* Liseré qui se déploie en haut de la carte. */
+.bar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--primary));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.6s var(--ease-out);
+}
+
+.card:hover .bar,
+.card:focus-within .bar {
+  transform: scaleX(1);
+}
+
+/* Grand numéro en filigrane. */
+.watermark {
+  position: absolute;
+  right: 1rem;
+  bottom: -1.6rem;
+  font-family: var(--font-display);
+  font-size: 8rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--primary);
+  opacity: 0.045;
+  pointer-events: none;
+  user-select: none;
+  transition:
+    opacity var(--t-base),
+    transform var(--t-base);
+}
+
+.card:hover .watermark {
+  opacity: 0.09;
+  transform: translateY(-6px) scale(1.05);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 1.1rem;
+}
+
+.iconTile {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(90, 184, 222, 0.14);
+  color: var(--primary);
+  transition:
+    background var(--t-base),
+    color var(--t-base),
+    transform var(--t-base);
+}
+
+.card:hover .iconTile {
+  background: linear-gradient(135deg, var(--primary), #2a5aa0);
+  color: #ffffff;
+  transform: rotate(-6deg) scale(1.06);
+}
+
+.labels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.index {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent-hover);
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: fit-content;
+  padding: 0.15rem 0.6rem;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 102, 51, 0.1);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #c2410c;
+}
+
+.title {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  color: var(--text-primary);
+}
+
+.description {
+  position: relative;
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: fit-content;
+  margin-top: auto;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  transition:
+    color var(--t-fast),
+    border-color var(--t-fast);
+}
+
+.link svg {
+  transition: transform var(--t-fast);
+}
+
+.link:hover {
+  color: var(--secondary);
+  border-bottom-color: var(--secondary);
+}
+
+.link:hover svg {
+  transform: translateX(4px);
+}
+
+.link:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Chevrons de liaison                                                  */
+/* ------------------------------------------------------------------ */
+
+.connector {
+  position: absolute;
+  z-index: 2;
+  top: calc(1.75rem + 28px - var(--connector) / 2);
+  right: calc(var(--gap) / -2 - var(--connector) / 2);
+  width: var(--connector);
+  height: var(--connector);
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--accent-hover);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  transition:
+    background var(--t-base),
+    color var(--t-base),
+    border-color var(--t-base),
+    transform var(--t-base);
+}
+
+.connector svg {
+  animation: nudge 1.8s ease-in-out infinite;
+}
+
+.step:hover .connector {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  transform: scale(1.12);
+}
+
+@keyframes nudge {
+  0%,
+  100% {
+    transform: translateX(-1px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+/* Mobile : cartes empilées, chevron centré entre deux cartes, pointant vers le bas. */
+@media (max-width: 860px) {
+  .connector {
+    top: auto;
+    right: auto;
+    bottom: calc(var(--gap) / -2 - var(--connector) / 2);
+    left: 50%;
+    margin-left: calc(var(--connector) / -2);
+  }
+
+  .connector svg {
+    transform: rotate(90deg);
+    animation: nudgeDown 1.8s ease-in-out infinite;
+  }
+
+  .step:hover .connector {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes nudgeDown {
+  0%,
+  100% {
+    transform: rotate(90deg) translateX(-1px);
+  }
+  50% {
+    transform: rotate(90deg) translateX(3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connector svg {
+    animation: none;
+  }
+
+  .card:hover,
+  .card:focus-within {
+    transform: none;
+  }
+}
