@@ -2,35 +2,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import Script from 'next/script';
-import { Icons } from '@/components/icons/Icons';
 import RecruitmentStatus from '@/components/ui/RecruitmentStatus';
+import BenefitCards from '@/components/ui/BenefitCards';
 import DepartmentCards from '@/components/ui/DepartmentCards';
 import JourneySteps from '@/components/ui/JourneySteps';
 import { isRecruitmentOpen, daysUntilClose, getRecruitmentWindow } from '@/lib/recruitment';
 import { jobPostingJsonLd } from '@/lib/metadata';
-
-const benefits = [
-  {
-    icon: Icons.Briefcase,
-    title: 'Projets clients réels',
-    description: "Vous travaillez sur de vrais mandats, pour de vraies entreprises, pas des exercices fictifs.",
-  },
-  {
-    icon: Icons.GraduationCap,
-    title: 'Montée en compétences',
-    description: 'Formations internes et externes, en hard skills comme en soft skills, pour progresser tout au long de votre parcours.',
-  },
-  {
-    icon: Icons.Handshake,
-    title: 'Un vrai réseau',
-    description: "Entreprises partenaires, alumni IRIS JE, et le reste du réseau des Junior-Entreprises tunisiennes.",
-  },
-  {
-    icon: Icons.Crown,
-    title: 'Un rôle clair',
-    description: 'Le membre actif se concentre sur la réalisation des missions.',
-  },
-];
 
 export default function HomePage() {
   const open = isRecruitmentOpen();
@@ -154,17 +131,7 @@ export default function HomePage() {
             <p>Ce que vous gagnez concrètement en devenant membre actif d&rsquo;IRIS JE.</p>
           </div>
 
-          <div className="benefits-grid">
-            {benefits.map((b) => (
-              <div className="benefit-card" key={b.title}>
-                <span className="benefit-icon">
-                  <b.icon size={22} />
-                </span>
-                <h3>{b.title}</h3>
-                <p>{b.description}</p>
-              </div>
-            ))}
-          </div>
+          <BenefitCards />
         </div>
       </section>
 
