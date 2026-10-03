@@ -1,10 +1,18 @@
 /* components/resultats/ResultCard.module.css
  *
- * Carte « Mon résultat » : un seul composant, trois tonalités
- * (succès / neutre / avertissement) pour les décisions, et les mêmes
- * bases pour les états chargement / attente / erreur. Les variables
- * viennent de globals.css (avec des valeurs de secours).
+ * Page « Mon résultat » :
+ *  - .card            : états simples (chargement, erreur, aucune candidature) ;
+ *  - .pending         : délibération en cours (anneaux animés + frise) ;
+ *  - .sealed          : résultat scellé / compte à rebours (fond « hero » IRIS) ;
+ *  - .result          : résultat révélé (bandeau coloré + corps blanc).
+ * Les variables viennent de globals.css (avec des valeurs de secours).
+ * Les valeurs de base sont les états FINAUX : les animations ne définissent
+ * que le départ, donc sans animation tout s'affiche correctement.
  */
+
+/* ------------------------------------------------------------------ */
+/* Cartes simples                                                       */
+/* ------------------------------------------------------------------ */
 
 .card {
   display: flex;
@@ -42,11 +50,9 @@
   height: 26px;
   border-radius: 50%;
   border: 3px solid rgba(26, 57, 105, 0.15);
-  border-top-color: var(--primary, #1a3969);
+  border-top-color: var(--secondary, #ff6633);
   animation: spin 0.8s linear infinite;
 }
-
-/* ------------------------------ Icône ------------------------------ */
 
 .icon {
   display: grid;
@@ -66,41 +72,477 @@
   color: #b45309;
 }
 
-.iconResult {
-  width: 84px;
-  height: 84px;
-  animation: pop 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.25) backwards;
+/* ------------------------------------------------------------------ */
+/* Motif « iris » (anneaux) partagé                                     */
+/* ------------------------------------------------------------------ */
+
+.arc {
+  fill: none;
+  stroke: var(--secondary, #ff6633);
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 
-/* ---------------------- Tonalités du résultat ---------------------- */
-
-.resultCard {
-  border-top-width: 5px;
-  animation: fadeUp 0.45s ease-out backwards;
+.dot {
+  fill: var(--secondary, #ff6633);
+  stroke: none;
 }
 
-.toneSuccess {
-  border-top-color: #22c55e;
-}
-.toneSuccess .iconResult {
-  background: rgba(34, 197, 94, 0.14);
-  color: #15803d;
+/* ------------------------------------------------------------------ */
+/* Délibération en cours                                                */
+/* ------------------------------------------------------------------ */
+
+.pending {
+  gap: 1rem;
+  padding-top: 2rem;
 }
 
-.toneNeutral {
-  border-top-color: var(--primary, #1a3969);
+.pendingVisual {
+  position: relative;
+  width: 168px;
+  height: 168px;
+  margin-bottom: 0.25rem;
 }
-.toneNeutral .iconResult {
-  background: rgba(26, 57, 105, 0.09);
+
+.pendingRings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pendingRings circle:not(.dot) {
+  fill: none;
+  stroke: rgba(26, 57, 105, 0.13);
+  stroke-width: 1.5;
+}
+
+.pendingSpin {
+  animation: spin 7s linear infinite;
+}
+
+.pendingDisc {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  margin: -38px 0 0 -38px;
+  border-radius: 50%;
+  background: rgba(90, 184, 222, 0.16);
+  color: var(--primary, #1a3969);
+  animation: breathe 2.6s ease-in-out infinite;
+}
+
+/* Frise : candidature reçue -> délibération -> décision. */
+.timeline {
+  display: flex;
+  width: 100%;
+  max-width: 30rem;
+  margin: 0.5rem 0 0.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.tStep {
+  position: relative;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* Trait vers l'étape suivante. */
+.tStep:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 15px;
+  left: calc(50% + 22px);
+  right: calc(-50% + 22px);
+  height: 2px;
+  border-radius: 2px;
+  background: var(--border, #e5e7eb);
+}
+
+.tStep[data-state='done']:not(:last-child)::after {
+  background: linear-gradient(90deg, var(--secondary, #ff6633), rgba(255, 102, 51, 0.35));
+}
+
+.tNode {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--text-muted, #9ca3af);
+}
+
+.tStep[data-state='done'] .tNode {
+  border-color: var(--secondary, #ff6633);
+  background: var(--secondary, #ff6633);
+  color: #ffffff;
+}
+
+.tStep[data-state='active'] .tNode {
+  border-color: var(--primary, #1a3969);
+  background: var(--primary, #1a3969);
+  color: #ffffff;
+  animation: nodePulse 2s ease-out infinite;
+}
+
+.tLabel {
+  max-width: 100%;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-muted, #9ca3af);
+}
+
+.tStep[data-state='done'] .tLabel,
+.tStep[data-state='active'] .tLabel {
   color: var(--primary, #1a3969);
 }
 
-.toneWarning {
-  border-top-color: #f59e0b;
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary, #6b7280);
 }
-.toneWarning .iconResult {
-  background: rgba(245, 158, 11, 0.15);
-  color: #b45309;
+
+.liveDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success, #22c55e);
+  animation: liveDot 1.8s ease-out infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Résultat scellé / compte à rebours                                   */
+/* ------------------------------------------------------------------ */
+
+.sealed {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1.25rem;
+  padding: clamp(2.25rem, 6vw, 3.5rem) 1.5rem clamp(2rem, 5vw, 3rem);
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--background-hero, linear-gradient(135deg, #0d2644, #1a3969));
+  box-shadow: 0 24px 56px rgba(13, 38, 68, 0.32);
+  color: #ffffff;
+  text-align: center;
+  isolation: isolate;
+  animation: fadeUp 0.5s ease-out backwards;
+}
+
+.sealed::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(55% 70% at 50% 18%, rgba(90, 184, 222, 0.22), transparent 72%);
+}
+
+.sealVisual {
+  position: relative;
+  width: clamp(190px, 52vw, 240px);
+  height: clamp(190px, 52vw, 240px);
+  margin-bottom: 0.4rem;
+}
+
+.sealRings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.sealRings circle:not(.dot) {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.14);
+  stroke-width: 1.5;
+}
+
+.sealSpin {
+  animation: spin 10s linear infinite;
+}
+
+.sealSpin circle:not(.dot) {
+  stroke: transparent;
+}
+
+.sealDisc {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  margin: -52px 0 0 -52px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.06));
+  box-shadow:
+    0 14px 32px rgba(4, 16, 36, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: breathe 2.8s ease-in-out infinite;
+}
+
+.sealed[data-phase='counting'] .sealDisc {
+  animation: none;
+  background: var(--secondary, #ff6633);
+  border-color: transparent;
+  box-shadow: 0 0 0 8px rgba(255, 102, 51, 0.25);
+}
+
+.count {
+  font-family: var(--font-display, inherit);
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  animation: countPop 0.8s var(--ease-out, ease-out) backwards;
+}
+
+/* Ondes qui partent du centre pendant le compte à rebours. */
+.ping {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 104px;
+  height: 104px;
+  margin: -52px 0 0 -52px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 102, 51, 0.7);
+  animation: ping 1.6s ease-out infinite;
+  pointer-events: none;
+}
+
+.pingLate {
+  animation-delay: 0.8s;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.eyebrowDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--secondary, #ff6633);
+  animation: liveDotOrange 1.8s ease-out infinite;
+}
+
+.sealTitle {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.45rem, 4.4vw, 2rem);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  text-wrap: balance;
+}
+
+.sealText {
+  max-width: 30rem;
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
+  text-wrap: pretty;
+}
+
+.revealBtn {
+  margin-top: 0.6rem;
+  gap: 0.5rem;
+  animation: btnGlow 2.4s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Résultat révélé                                                      */
+/* ------------------------------------------------------------------ */
+
+.result {
+  --t1: #0d2644;
+  --t2: #1a3969;
+  --t-fg: #1a3969;
+  --t-soft: rgba(26, 57, 105, 0.09);
+
+  margin-top: 1.25rem;
+  border-radius: 24px;
+  overflow: hidden;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  box-shadow: 0 18px 44px var(--shadow, rgba(15, 23, 42, 0.1));
+  animation: reveal 0.75s var(--ease-out, ease-out) backwards;
+}
+
+.toneSuccess {
+  --t1: #15803d;
+  --t2: #22c55e;
+  --t-fg: #15803d;
+  --t-soft: rgba(34, 197, 94, 0.12);
+}
+
+.toneNeutral {
+  --t1: #0d2644;
+  --t2: #1a3969;
+  --t-fg: #1a3969;
+  --t-soft: rgba(26, 57, 105, 0.09);
+}
+
+.toneWarning {
+  --t1: #b45309;
+  --t2: #f59e0b;
+  --t-fg: #b45309;
+  --t-soft: rgba(245, 158, 11, 0.14);
+}
+
+.banner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 2.25rem 1.5rem 2rem;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--t1), var(--t2));
+  color: #ffffff;
+}
+
+.bannerRings {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 420px;
+  max-width: none;
+  height: 420px;
+  margin: -210px 0 0 -210px;
+  pointer-events: none;
+}
+
+.bannerRings circle {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1.5;
+}
+
+.badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 8px rgba(255, 255, 255, 0.22),
+    0 14px 30px rgba(0, 0, 0, 0.2);
+  color: var(--t-fg);
+  animation: pop 0.7s 0.15s cubic-bezier(0.2, 0.9, 0.3, 1.25) backwards;
+}
+
+.chip {
+  position: relative;
+  padding: 0.3rem 0.95rem;
+  border-radius: var(--radius-pill, 999px);
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  animation: fadeUp 0.5s 0.45s ease-out backwards;
+}
+
+.resultBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1.75rem 1.5rem 2rem;
+  text-align: center;
+}
+
+.resultTitle {
+  margin: 0;
+  font-family: var(--font-display, inherit);
+  font-size: clamp(1.35rem, 4vw, 1.8rem);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--text-primary, #1f2937);
+  text-wrap: balance;
+  animation: fadeUp 0.5s 0.5s ease-out backwards;
+}
+
+.resultBody .text {
+  animation: fadeUp 0.5s 0.62s ease-out backwards;
+}
+
+.dept {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--t-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--t-fg);
+  animation: fadeUp 0.5s 0.72s ease-out backwards;
+}
+
+/* ------------------------------------------------------------------ */
+/* Confettis (résultat « accepté » uniquement)                          */
+/* ------------------------------------------------------------------ */
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.piece {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  border-radius: 2px;
+  background: var(--c);
+  opacity: 0;
+  animation: burst 2.4s cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
 
 /* -------------------- Message de l'équipe + notes -------------------- */
@@ -150,7 +592,9 @@
   color: var(--text-muted, #9ca3af);
 }
 
-/* ---------------------------- Animations ---------------------------- */
+/* ------------------------------------------------------------------ */
+/* Animations                                                           */
+/* ------------------------------------------------------------------ */
 
 @keyframes spin {
   to {
@@ -158,14 +602,82 @@
   }
 }
 
-@keyframes pop {
-  from {
-    transform: scale(0.6);
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes nodePulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(26, 57, 105, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 12px rgba(26, 57, 105, 0);
+  }
+}
+
+@keyframes liveDot {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(34, 197, 94, 0);
+  }
+}
+
+@keyframes liveDotOrange {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 102, 51, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(255, 102, 51, 0);
+  }
+}
+
+@keyframes btnGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 102, 51, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(255, 102, 51, 0);
+  }
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.3);
     opacity: 0;
   }
-  to {
-    transform: scale(1);
-    opacity: 1;
+}
+
+@keyframes countPop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+}
+
+@keyframes reveal {
+  from {
+    transform: translateY(16px) scale(0.97);
+    opacity: 0;
   }
 }
 
@@ -174,17 +686,48 @@
     transform: translateY(10px);
     opacity: 0;
   }
-  to {
-    transform: translateY(0);
+}
+
+@keyframes burst {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
     opacity: 1;
+  }
+  18% {
+    transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) rotate(var(--r)) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--x) * 1.3), calc(-50% + var(--y) + 260px)) rotate(calc(var(--r) * 3))
+      scale(1);
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .iconResult,
-  .resultCard,
-  .spinner {
+  .spinner,
+  .pendingSpin,
+  .pendingDisc,
+  .sealSpin,
+  .sealDisc,
+  .ping,
+  .count,
+  .eyebrowDot,
+  .liveDot,
+  .revealBtn,
+  .sealed,
+  .result,
+  .badge,
+  .chip,
+  .resultTitle,
+  .resultBody .text,
+  .dept,
+  .tStep[data-state='active'] .tNode {
     animation: none;
+  }
+
+  .confetti {
+    display: none;
   }
 }
 
@@ -192,5 +735,22 @@
   .card {
     padding: 1.75rem 1.1rem;
     border-radius: 20px;
+  }
+
+  .sealed,
+  .result {
+    border-radius: 20px;
+  }
+
+  .banner {
+    padding: 1.9rem 1.1rem 1.7rem;
+  }
+
+  .resultBody {
+    padding: 1.5rem 1.1rem 1.75rem;
+  }
+
+  .tLabel {
+    font-size: 0.72rem;
   }
 }

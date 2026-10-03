@@ -16,8 +16,12 @@ type PageHeroProps = {
   current?: CurrentStep;
   title: ReactNode;
   description: string;
-  /** Icône facultative affichée au-dessus du titre (ex. page admin). */
+  /** Icône facultative : pastille à droite du titre (grands écrans uniquement). */
   icon?: ComponentType<{ size?: number }>;
+  /** Petit bandeau facultatif au-dessus du titre (ex. pastille de statut). */
+  eyebrow?: ReactNode;
+  /** Visuel décoratif facultatif à droite du titre (grands écrans uniquement), à la place de `icon`. */
+  aside?: ReactNode;
 };
 
 const STEPS = [
@@ -26,7 +30,14 @@ const STEPS = [
   { key: 'reponse', label: 'Réponse', hint: "Décision de l'équipe", href: '/resultats' },
 ] as const;
 
-export default function PageHero({ current, title, description, icon: Icon }: PageHeroProps) {
+export default function PageHero({
+  current,
+  title,
+  description,
+  icon: Icon,
+  eyebrow,
+  aside,
+}: PageHeroProps) {
   const currentIndex = current ? STEPS.findIndex((step) => step.key === current) : -1;
 
   return (
@@ -41,17 +52,25 @@ export default function PageHero({ current, title, description, icon: Icon }: Pa
       </svg>
 
       <div className="container">
-        <div className={styles.body}>
-          {Icon && (
-            <span
-              aria-hidden="true"
-              style={{ display: 'inline-flex', marginBottom: '1rem', color: 'var(--accent, #5ab8de)' }}
-            >
-              <Icon size={32} />
-            </span>
+        <div className={styles.inner}>
+          <div className={styles.body}>
+            {eyebrow && <div className={styles.eyebrow}>{eyebrow}</div>}
+            <h1 className={styles.title}>{title}</h1>
+            <p className={styles.lead}>{description}</p>
+          </div>
+
+          {/* Pastille d'icône : affichée à droite du titre sur grand écran, masquée sur mobile/tablette. */}
+          {aside ? (
+            <div className={styles.aside} aria-hidden="true">
+              {aside}
+            </div>
+          ) : (
+            Icon && (
+              <span className={styles.badge} aria-hidden="true">
+                <Icon size={46} />
+              </span>
+            )
           )}
-          <h1 className={styles.title}>{title}</h1>
-          <p className={styles.lead}>{description}</p>
         </div>
       </div>
 

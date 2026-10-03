@@ -2,10 +2,19 @@
 // components/resultats/ResultCard.tsx
 //
 // « Mon résultat » : affiche la décision de la délibération une fois
-// publiée par l'administration. Tant que rien n'est publié, la carte
-// « délibération en cours » se rafraîchit toute seule (toutes les 45 s et
-// au retour sur l'onglet) : le candidat n'a rien à recharger.
-import { useCallback, useEffect, useRef, useState } from 'react';
+// publiée par l'administration.
+//
+// Mise en scène du suspense :
+//  - décision pas encore publiée : « délibération en cours » (anneaux
+//    animés, frise de progression, mise à jour automatique toutes les 45 s
+//    et au retour sur l'onglet) ;
+//  - décision publiée : le résultat reste SCELLÉ derrière un bouton
+//    « Découvrir mon résultat ». Au clic, un court compte à rebours
+//    (3-2-1) précède l'ouverture. Une fois découvert, il s'affiche
+//    directement lors des visites suivantes (mémorisé dans ce navigateur).
+//  - mouvement réduit : pas de compte à rebours ni de confettis, le
+//    résultat s'affiche dès le clic.
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { Icons } from '@/components/icons/Icons';
@@ -25,6 +34,9 @@ type Props = {
 };
 
 const POLL_MS = 45_000;
+const COUNTDOWN_FROM = 3;
+const COUNTDOWN_STEP_MS = 800;
+const REVEALED_KEY = 'iris-je:result-revealed';
 
 const dateFormatter = new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric',
@@ -32,6 +44,11 @@ const dateFormatter = new Intl.DateTimeFormat('fr-FR', {
   hour: '2-digit',
   minute: '2-digit',
   timeZone: 'Africa/Tunis',
+});
+
+const timeFormatter = new Intl.DateTimeFormat('fr-FR', {
+  hour: '2-digit',
+  minute: '2-digit',
 });
 
 function formatPublished(iso: string | null): string | null {
@@ -43,6 +60,7 @@ function formatPublished(iso: string | null): string | null {
 type Copy = {
   tone: 'success' | 'neutral' | 'warning';
   icon: 'Check' | 'Heart' | 'Calendar';
+  chip: string;
   title: string;
   text: (department: string | null) => string;
   hint?: string;
@@ -52,6 +70,7 @@ const COPY: Record<ResultStatus, Copy> = {
   accepted: {
     tone: 'success',
     icon: 'Check',
+    chip: 'Accepté(e)',
     title: 'Félicitations, vous êtes accepté(e) !',
     text: (dept) =>
       `Votre candidature${dept ? ` pour le département ${dept}` : ''} a été retenue. Bienvenue chez IRIS Junior Entreprise !`,
@@ -59,6 +78,7 @@ const COPY: Record<ResultStatus, Copy> = {
   rejected: {
     tone: 'neutral',
     icon: 'Heart',
+    chip: 'Non retenu(e)',
     title: 'Merci pour votre candidature',
     text: (dept) =>
       `Après délibération, nous ne sommes malheureusement pas en mesure de retenir votre candidature${dept ? ` pour le département ${dept}` : ''} cette fois-ci. Merci sincèrement pour votre intérêt et le temps consacré à ce processus.`,
@@ -67,6 +87,7 @@ const COPY: Record<ResultStatus, Copy> = {
   absent: {
     tone: 'warning',
     icon: 'Calendar',
+    chip: 'Absent(e) à l’entretien',
     title: 'Entretien non effectué',
     text: (dept) =>
       `Vous n’étiez pas présent(e) à votre entretien${dept ? ` pour le département ${dept}` : ''}. Sans entretien, nous ne sommes pas en mesure d’étudier votre candidature plus avant.`,
@@ -74,10 +95,219 @@ const COPY: Record<ResultStatus, Copy> = {
   },
 };
 
+/* ------------------------------------------------------------------ */
+/* Briques visuelles                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Motif « iris » de la charte : anneaux concentriques, arc et point orange. */
+function Rings({ className, arc = true }: { className?: string; arc?: boolean }) {
+  return (
+    <svg className={className} viewBox="0 0 400 400" aria-hidden="true" focusable="false">
+      <circle cx="200" cy="200" r="70" />
+      <circle cx="200" cy="200" r="110" />
+      <circle cx="200" cy="200" r="150" />
+      <circle cx="200" cy="200" r="190" />
+      {arc && (
+        <>
+          <path className={styles.arc} d="M 255 104.7 A 110 110 0 0 1 303.4 237.6" />
+          <circle className={styles.dot} cx="303.4" cy="237.6" r="6" />
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** Confettis aux couleurs IRIS (positions déterministes : pas de Math.random). */
+const CONFETTI_COLORS = ['#ff6633', '#5ab8de', '#ffffff', '#ffd9cc', '#a6dcef'];
+const CONFETTI = Array.from({ length: 30 }, (_, i) => ({
+  x: ((i * 83) % 361) - 180,
+  y: -(60 + ((i * 47) % 130)),
+  r: ((i * 61) % 360) - 180,
+  d: (i % 10) * 45,
+  c: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  w: 6 + (i % 3) * 2,
+}));
+
+function Confetti() {
+  return (
+    <div className={styles.confetti} aria-hidden="true">
+      {CONFETTI.map((p, i) => (
+        <span
+          key={i}
+          className={styles.piece}
+          style={
+            {
+              '--x': `${p.x}px`,
+              '--y': `${p.y}px`,
+              '--r': `${p.r}deg`,
+              '--c': p.c,
+              width: `${p.w}px`,
+              height: `${p.w * 1.8}px`,
+              animationDelay: `${p.d}ms`,
+            } as CSSProperties
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Résultat publié : scellé -> compte à rebours -> révélation           */
+/* ------------------------------------------------------------------ */
+
+type RevealPhase = 'sealed' | 'counting' | 'open';
+
+function wasRevealed(email: string, publishedAt: string | null): boolean {
+  try {
+    return window.localStorage.getItem(REVEALED_KEY) === `${email}|${publishedAt ?? ''}`;
+  } catch {
+    return false;
+  }
+}
+
+function markRevealed(email: string, publishedAt: string | null) {
+  try {
+    window.localStorage.setItem(REVEALED_KEY, `${email}|${publishedAt ?? ''}`);
+  } catch {
+    /* stockage indisponible : le résultat sera simplement re-scellé à la prochaine visite */
+  }
+}
+
+function PublishedResult({ result, email }: { result: CandidateResult; email: string }) {
+  const [phase, setPhase] = useState<RevealPhase>(() =>
+    wasRevealed(email, result.publishedAt) ? 'open' : 'sealed',
+  );
+  const [count, setCount] = useState(COUNTDOWN_FROM);
+  // Confettis seulement si la révélation vient d'avoir lieu sous les yeux du candidat.
+  const [celebrate, setCelebrate] = useState(false);
+
+  function open(animated: boolean) {
+    markRevealed(email, result.publishedAt);
+    setCelebrate(animated);
+    setPhase('open');
+  }
+
+  function start() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      open(false);
+      return;
+    }
+    setCount(COUNTDOWN_FROM);
+    setPhase('counting');
+  }
+
+  useEffect(() => {
+    if (phase !== 'counting') return;
+    if (count <= 0) {
+      markRevealed(email, result.publishedAt);
+      setCelebrate(true);
+      setPhase('open');
+      return;
+    }
+    const timer = window.setTimeout(() => setCount((c) => c - 1), COUNTDOWN_STEP_MS);
+    return () => window.clearTimeout(timer);
+  }, [phase, count, email, result.publishedAt]);
+
+  if (phase !== 'open') {
+    const counting = phase === 'counting';
+    return (
+      <div className={styles.sealed} data-phase={phase} role="status">
+        <div className={styles.sealVisual}>
+          <Rings className={styles.sealRings} arc={false} />
+          <Rings className={`${styles.sealRings} ${styles.sealSpin}`} />
+          {counting && (
+            <>
+              <span className={styles.ping} aria-hidden="true" />
+              <span className={`${styles.ping} ${styles.pingLate}`} aria-hidden="true" />
+            </>
+          )}
+          <span className={styles.sealDisc}>
+            {counting ? (
+              <span key={count} className={styles.count} aria-hidden="true">
+                {Math.max(count, 1)}
+              </span>
+            ) : (
+              <Icons.Lock size={38} />
+            )}
+          </span>
+        </div>
+
+        <span className={styles.eyebrow}>
+          <span className={styles.eyebrowDot} aria-hidden="true" />
+          {counting ? 'Ouverture en cours' : 'Résultat disponible'}
+        </span>
+        <h3 className={styles.sealTitle}>
+          {counting ? 'Ça y est, on y est presque…' : 'Votre décision est prête'}
+        </h3>
+        <p className={styles.sealText}>
+          {counting
+            ? 'Respirez, votre résultat s’affiche dans un instant.'
+            : 'L’équipe IRIS JE a publié sa décision. Prenez une inspiration, puis découvrez-la quand vous êtes prêt(e).'}
+        </p>
+
+        {!counting && (
+          <button type="button" className={`btn btn-primary ${styles.revealBtn}`} onClick={start}>
+            <Icons.Sparkles size={18} />
+            Découvrir mon résultat
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const copy = COPY[result.status];
+  const Icon = Icons[copy.icon];
+  const publishedLabel = formatPublished(result.publishedAt);
+  const toneClass =
+    copy.tone === 'success' ? styles.toneSuccess : copy.tone === 'warning' ? styles.toneWarning : styles.toneNeutral;
+
+  return (
+    <div className={`${styles.result} ${toneClass}`} role="status" data-result={result.status}>
+      <div className={styles.banner}>
+        <Rings className={styles.bannerRings} arc={false} />
+        {celebrate && result.status === 'accepted' && <Confetti />}
+        <span className={styles.badge}>
+          <Icon size={38} />
+        </span>
+        <span className={styles.chip}>{copy.chip}</span>
+      </div>
+
+      <div className={styles.resultBody}>
+        <h3 className={styles.resultTitle}>{copy.title}</h3>
+        <p className={styles.text}>{copy.text(result.departmentLabel)}</p>
+
+        {result.departmentLabel && (
+          <span className={styles.dept}>
+            <Icons.Briefcase size={14} />
+            Département {result.departmentLabel}
+          </span>
+        )}
+
+        {result.message && (
+          <blockquote className={styles.note}>
+            <span className={styles.noteLabel}>Message de l&rsquo;équipe</span>
+            <p>{result.message}</p>
+          </blockquote>
+        )}
+
+        {copy.hint && <p className={styles.hint}>{copy.hint}</p>}
+
+        {publishedLabel && <p className={styles.meta}>Résultat publié le {publishedLabel}</p>}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Composant principal                                                  */
+/* ------------------------------------------------------------------ */
+
 export default function ResultCard({ verifiedEmail }: Props) {
   const { getIdToken } = useAuth();
   const [state, setState] = useState<State>({ status: 'loading' });
   const [refreshing, setRefreshing] = useState(false);
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
 
   const tokenRef = useRef(getIdToken);
   tokenRef.current = getIdToken;
@@ -99,6 +329,7 @@ export default function ResultCard({ verifiedEmail }: Props) {
 
       if (!res.ok || !data?.ok) throw new Error('bad-response');
 
+      setCheckedAt(new Date());
       if (data.state === 'published' && data.result) {
         setState({ status: 'published', result: data.result as CandidateResult });
       } else if (data.state === 'no-candidature') {
@@ -187,52 +418,54 @@ export default function ResultCard({ verifiedEmail }: Props) {
 
   if (state.status === 'pending') {
     return (
-      <div className={styles.card} role="status">
-        <span className={`${styles.icon} ${styles.iconNeutral}`}>
-          <Icons.Clock size={30} />
-        </span>
+      <div className={`${styles.card} ${styles.pending}`} role="status">
+        <div className={styles.pendingVisual}>
+          <Rings className={styles.pendingRings} arc={false} />
+          <Rings className={`${styles.pendingRings} ${styles.pendingSpin}`} />
+          <span className={styles.pendingDisc}>
+            <Icons.Clock size={32} />
+          </span>
+        </div>
+
         <h3 className={styles.title}>Délibération en cours</h3>
         <p className={styles.text}>
-          Votre résultat n&rsquo;est pas encore publié. Cette page se met à jour toute seule dès qu&rsquo;il est
-          disponible — vous pouvez la laisser ouverte ou revenir plus tard.
+          L&rsquo;équipe IRIS JE étudie les candidatures. Votre résultat s&rsquo;affichera ici dès sa publication :
+          vous pouvez laisser cette page ouverte ou revenir plus tard.
         </p>
-        <button
-          type="button"
-          className="btn btn-outline"
-          onClick={manualRefresh}
-          disabled={refreshing}
-        >
-          {refreshing ? 'Actualisation…' : 'Actualiser'}
+
+        <ol className={styles.timeline} aria-label="Avancement de votre candidature">
+          <li className={styles.tStep} data-state="done">
+            <span className={styles.tNode}>
+              <Icons.Check size={14} />
+            </span>
+            <span className={styles.tLabel}>Candidature reçue</span>
+          </li>
+          <li className={styles.tStep} data-state="active">
+            <span className={styles.tNode}>
+              <Icons.Clock size={14} />
+            </span>
+            <span className={styles.tLabel}>Délibération</span>
+          </li>
+          <li className={styles.tStep} data-state="todo">
+            <span className={styles.tNode}>
+              <Icons.Lock size={13} />
+            </span>
+            <span className={styles.tLabel}>Décision</span>
+          </li>
+        </ol>
+
+        <p className={styles.live}>
+          <span className={styles.liveDot} aria-hidden="true" />
+          Mise à jour automatique
+          {checkedAt ? ` · vérifié à ${timeFormatter.format(checkedAt)}` : ''}
+        </p>
+
+        <button type="button" className="btn btn-outline" onClick={manualRefresh} disabled={refreshing}>
+          {refreshing ? 'Actualisation…' : 'Actualiser maintenant'}
         </button>
       </div>
     );
   }
 
-  const { result } = state;
-  const copy = COPY[result.status];
-  const Icon = Icons[copy.icon];
-  const publishedLabel = formatPublished(result.publishedAt);
-  const toneClass =
-    copy.tone === 'success' ? styles.toneSuccess : copy.tone === 'warning' ? styles.toneWarning : styles.toneNeutral;
-
-  return (
-    <div className={`${styles.card} ${styles.resultCard} ${toneClass}`} role="status" data-result={result.status}>
-      <span className={`${styles.icon} ${styles.iconResult}`}>
-        <Icon size={34} />
-      </span>
-      <h3 className={styles.title}>{copy.title}</h3>
-      <p className={styles.text}>{copy.text(result.departmentLabel)}</p>
-
-      {result.message && (
-        <blockquote className={styles.note}>
-          <span className={styles.noteLabel}>Message de l&rsquo;équipe</span>
-          <p>{result.message}</p>
-        </blockquote>
-      )}
-
-      {copy.hint && <p className={styles.hint}>{copy.hint}</p>}
-
-      {publishedLabel && <p className={styles.meta}>Résultat publié le {publishedLabel}</p>}
-    </div>
-  );
+  return <PublishedResult result={state.result} email={verifiedEmail} />;
 }

@@ -1,0 +1,204 @@
+/* components/resultats/ResultHero.module.css
+ *
+ * Éléments décoratifs du hero « Mon résultat ». Les valeurs de base sont les
+ * états FINAUX ; les animations ne fixent que le départ ou boucler en
+ * continu, et sont coupées en mouvement réduit.
+ */
+
+/* ------------------------------ Pastille de statut ------------------------------ */
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.38rem 0.95rem;
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: clamp(0.7rem, 1vw + 0.45rem, 0.78rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: eyebrowIn 0.6s 0.1s var(--ease-out, ease-out) backwards;
+}
+
+.eyebrowDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--secondary, #ff6633);
+  animation: dotPulse 1.8s ease-out infinite;
+}
+
+@keyframes eyebrowIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes dotPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 102, 51, 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 9px rgba(255, 102, 51, 0);
+  }
+}
+
+/* ------------------------------ Points de suspense ------------------------------ */
+
+.dots {
+  display: inline-block;
+  margin-left: 0.04em;
+  color: var(--secondary, #ff6633);
+  letter-spacing: 0.02em;
+}
+
+.dots span {
+  display: inline-block;
+  animation: dotBlink 1.8s ease-in-out infinite;
+}
+
+.dots span:nth-child(2) {
+  animation-delay: 0.25s;
+}
+
+.dots span:nth-child(3) {
+  animation-delay: 0.5s;
+}
+
+@keyframes dotBlink {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-0.12em);
+  }
+}
+
+/* ------------------------------ Sceau « iris » ------------------------------ */
+
+.seal {
+  position: relative;
+  width: 190px;
+  height: 190px;
+  animation: sealIn 0.9s 0.25s var(--ease-out, ease-out) backwards;
+}
+
+.sealRings {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.sealRings circle {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1.5;
+}
+
+/* Arc orange en orbite lente, comme dans les anneaux décoratifs du hero. */
+.sealOrbit {
+  animation: orbit 12s linear infinite;
+}
+
+.sealOrbit .orbitArc {
+  fill: none;
+  stroke: var(--secondary, #ff6633);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.sealOrbit .orbitDot {
+  fill: var(--secondary, #ff6633);
+  stroke: none;
+}
+
+.disc {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  margin: -52px 0 0 -52px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.04));
+  box-shadow:
+    0 18px 40px rgba(4, 16, 36, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  color: var(--accent, #5ab8de);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: breathe 3.4s ease-in-out infinite;
+}
+
+/* Anse du cadenas : se soulève brièvement, toutes les ~6 s. */
+.shackle {
+  transform-box: fill-box;
+  transform-origin: 85% 100%;
+  animation: shackle 6s ease-in-out infinite;
+}
+
+@keyframes sealIn {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+}
+
+@keyframes orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes shackle {
+  0%,
+  68%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  76%,
+  88% {
+    transform: translateY(-2.5px) rotate(-16deg);
+  }
+}
+
+/* Mouvement réduit : tout reste fixe, dans son état final lisible. */
+@media (prefers-reduced-motion: reduce) {
+  .eyebrow,
+  .eyebrowDot,
+  .dots span,
+  .seal,
+  .sealOrbit,
+  .disc,
+  .shackle {
+    animation: none;
+  }
+
+  .dots span {
+    opacity: 1;
+  }
+}
