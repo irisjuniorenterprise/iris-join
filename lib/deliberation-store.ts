@@ -11,6 +11,7 @@
 import { FieldValue, type DocumentData } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebase-admin';
 import { isResultStatus, type AdminDecision, type ResultStatus } from './deliberation';
+import { normalizeDepartment, type DepartmentKey } from './interview';
 
 const COLLECTION = 'deliberations';
 const BATCH_SIZE = 400;
@@ -39,6 +40,7 @@ function toDecision(id: string, data: DocumentData): AdminDecision | null {
     emailSentAt: optionalString(data.emailSentAt),
     decidedAt: optionalString(data.decidedAt),
     decidedBy: optionalString(data.decidedBy),
+    acceptedDepartment: data.status === 'accepted' ? normalizeDepartment(data.acceptedDepartment) : null,
   };
 }
 
@@ -80,12 +82,18 @@ export async function getDecision(key: string): Promise<AdminDecision | null> {
  * résultat déjà publié le reste, mais sa date d'envoi d'e-mail est effacée
  * quand la décision ou le message change (l'e-mail est à renvoyer).
  * Renvoie le nombre de résultats réellement créés / modifiés / retirés.
+ *
+ * `acceptedDepartment` (uniquement pour « accepté ») : département dans lequel
+ * le candidat est accepté s'il diffère de son 1er choix. `undefined` = on
+ * conserve la valeur actuelle ; `null` = on la retire (retour au 1er choix).
+ * Pour tout autre résultat, le champ est toujours retiré.
  */
 export async function setDecisions(
   keys: string[],
   status: ResultStatus | null,
   message: string | undefined,
   adminEmail: string,
+  acceptedDepartment?: DepartmentKey | null,
 ): Promise<number> {
   const db = getDb();
   const unique = Array.from(new Set(keys.map(normEmail)));
@@ -110,7 +118,21 @@ export async function setDecisions(
       }
 
       const nextMessage = message !== undefined ? message : (prev?.message ?? '');
-      if (prev && prev.status === status && prev.message === nextMessage) continue;
+      const prevDepartment = prev?.acceptedDepartment ?? null;
+      const nextDepartment: DepartmentKey | null =
+        status !== 'accepted'
+          ? null
+          : acceptedDepartment !== undefined
+            ? acceptedDepartment
+            : prevDepartment;
+      if (
+        prev &&
+        prev.status === status &&
+        prev.message === nextMessage &&
+        prevDepartment === nextDepartment
+      ) {
+        continue;
+      }
 
       batch.set(
         ref,
@@ -122,6 +144,11 @@ export async function setDecisions(
           decidedAt: now,
           decidedBy: adminEmail,
           updatedAt: now,
+          ...(nextDepartment
+            ? { acceptedDepartment: nextDepartment }
+            : prevDepartment
+              ? { acceptedDepartment: FieldValue.delete() }
+              : {}),
           ...(prev?.emailSentAt ? { emailSentAt: FieldValue.delete() } : {}),
         },
         { merge: true },

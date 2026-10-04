@@ -45,6 +45,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, state: 'pending' }, { headers: NO_STORE });
     }
 
+    // Département affiché : celui où l'admin a accepté le candidat (s'il l'a
+    // précisé), sinon le 1er choix de sa candidature.
+    const appliedKey = candidate.status === 'ok' ? candidate.department : null;
+    const acceptedKey = decision.status === 'accepted' ? (decision.acceptedDepartment ?? null) : null;
+    const shownKey = acceptedKey ?? appliedKey;
+
     return NextResponse.json(
       {
         ok: true,
@@ -52,7 +58,8 @@ export async function GET(request: Request) {
         result: {
           status: decision.status,
           message: decision.message,
-          departmentLabel: candidate.status === 'ok' ? DEPARTMENT_LABELS[candidate.department] : null,
+          departmentLabel: shownKey ? DEPARTMENT_LABELS[shownKey] : null,
+          ...(acceptedKey && acceptedKey !== appliedKey ? { departmentChanged: true } : {}),
           publishedAt: decision.publishedAt,
         },
       },

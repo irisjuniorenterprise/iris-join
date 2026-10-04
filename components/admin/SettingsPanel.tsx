@@ -19,11 +19,15 @@ import {
   type ServiceWindow,
   type ServiceWindows,
 } from '@/lib/service-window';
+import type { NotificationSettings } from '@/lib/notification-settings';
+import NotificationSettingsCard from './NotificationSettingsCard';
 import styles from './admin.module.css';
 
 type Props = {
   windows: ServiceWindows | null;
   onSave: (service: ServiceKey, window: ServiceWindow) => Promise<boolean>;
+  notifications: NotificationSettings | null;
+  onSaveNotifications: (candidatureEmail: boolean) => Promise<boolean>;
 };
 
 /** ISO (avec fuseau) -> valeur attendue par <input type="datetime-local"> (heure locale du navigateur). */
@@ -155,7 +159,7 @@ function ServiceWindowCard({
   );
 }
 
-export default function SettingsPanel({ windows, onSave }: Props) {
+export default function SettingsPanel({ windows, onSave, notifications, onSaveNotifications }: Props) {
   const services = useMemo(() => SERVICE_KEYS, []);
 
   if (!windows) {
@@ -190,6 +194,8 @@ export default function SettingsPanel({ windows, onSave }: Props) {
           />
         ))}
       </div>
+
+      <NotificationSettingsCard settings={notifications} onSave={onSaveNotifications} />
     </div>
   );
 }

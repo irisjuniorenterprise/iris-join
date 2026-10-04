@@ -19,6 +19,7 @@ import {
   DEPARTMENT_KEYS,
   DEPARTMENT_LABELS,
   getDayParts,
+  normalizeDepartment,
   type DepartmentKey,
 } from '@/lib/interview';
 import {
@@ -87,23 +88,43 @@ const plural = (n: number, one: string, many: string) => (n > 1 ? many : one);
 /* ------------------------------------------------------------------ */
 
 type DecisionDialogProps = {
+  candidate: Candidature;
   name: string;
   email: string;
   current: AdminDecision | null;
   onClose: () => void;
-  onSave: (status: ResultStatus, message: string) => Promise<boolean>;
+  /** `acceptedDepartment` : département d'acceptation s'il diffère du 1er choix, sinon null. */
+  onSave: (status: ResultStatus, message: string, acceptedDepartment: DepartmentKey | null) => Promise<boolean>;
 };
 
-function DecisionDialog({ name, email, current, onClose, onSave }: DecisionDialogProps) {
+function DecisionDialog({ candidate, name, email, current, onClose, onSave }: DecisionDialogProps) {
   const [status, setStatus] = useState<ResultStatus | null>(current?.status ?? null);
   const [message, setMessage] = useState(current?.message ?? '');
   const [busy, setBusy] = useState(false);
 
+  // 1er choix du candidat = département de sa candidature (celui des entretiens).
+  const firstChoice = candidate.department;
+  // Département d'acceptation : par défaut le 1er choix ; l'admin peut en choisir un autre.
+  const [department, setDepartment] = useState<DepartmentKey | null>(
+    current?.acceptedDepartment ?? firstChoice,
+  );
+
+  // Choix classés par le candidat (1er, 2e…), pour aider l'admin à décider.
+  const rankOf = new Map<DepartmentKey, number>();
+  candidate.departements.forEach((raw, index) => {
+    const key = normalizeDepartment(raw);
+    if (key && !rankOf.has(key)) rankOf.set(key, index + 1);
+  });
+
+  const accepted = status === 'accepted';
+  const changed = accepted && department !== null && department !== firstChoice;
+  const canSave = Boolean(status) && (!accepted || department !== null);
+
   async function submit() {
-    if (!status) return;
+    if (!status || !canSave) return;
     setBusy(true);
     try {
-      await onSave(status, message.trim());
+      await onSave(status, message.trim(), changed ? department : null);
     } finally {
       setBusy(false);
     }
@@ -120,7 +141,7 @@ function DecisionDialog({ name, email, current, onClose, onSave }: DecisionDialo
           <button type="button" className="btn btn-outline" onClick={onClose} disabled={busy}>
             Annuler
           </button>
-          <button type="button" className="btn btn-primary" onClick={submit} disabled={!status || busy}>
+          <button type="button" className="btn btn-primary" onClick={submit} disabled={!canSave || busy}>
             {busy ? 'Enregistrement…' : 'Enregistrer'}
           </button>
         </>
@@ -153,6 +174,44 @@ function DecisionDialog({ name, email, current, onClose, onSave }: DecisionDialo
             ))}
           </div>
         </fieldset>
+
+        {accepted && (
+          <fieldset className={adminStyles.fieldsetPlain}>
+            <legend>Accepté dans le département</legend>
+            <div className={adminStyles.chips} role="group" aria-label="Département d'acceptation">
+              {DEPARTMENT_KEYS.map((key) => {
+                const rank = rankOf.get(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    className={adminStyles.chip}
+                    aria-pressed={department === key}
+                    onClick={() => setDepartment(key)}
+                  >
+                    {DEPARTMENT_LABELS[key]}
+                    {rank ? ` · choix ${rank}` : ' · hors choix'}
+                  </button>
+                );
+              })}
+            </div>
+            <span className={adminStyles.fieldHint}>
+              Par défaut, le 1er choix du candidat
+              {firstChoice ? ` (${DEPARTMENT_LABELS[firstChoice]})` : ''}. Choisissez un autre département si
+              l&rsquo;entretien a révélé un profil mieux adapté.
+            </span>
+            {changed && department && (
+              <div className={adminStyles.infoBox}>
+                <Icons.Info size={18} />
+                <span>
+                  Le candidat sera accepté en <strong>{DEPARTMENT_LABELS[department]}</strong>
+                  {firstChoice ? <> (son 1er choix était {DEPARTMENT_LABELS[firstChoice]})</> : null}. Son
+                  résultat et l&rsquo;e-mail l&rsquo;indiqueront.
+                </span>
+              </div>
+            )}
+          </fieldset>
+        )}
 
         <label className={adminStyles.formField}>
           <span>Message personnalisé (facultatif)</span>
@@ -323,12 +382,22 @@ export default function DeliberationPanel({ candidatures, bookingByEmail, call }
   /* ------------------------------- Actions ------------------------------- */
 
   /** Enregistre (ou retire, si status = null) la décision pour des candidats. */
-  async function saveDecision(keys: string[], status: ResultStatus | null, message?: string): Promise<boolean> {
+  async function saveDecision(
+    keys: string[],
+    status: ResultStatus | null,
+    message?: string,
+    acceptedDepartment?: DepartmentKey | null,
+  ): Promise<boolean> {
     setWorking(true);
     try {
       const res = await call<{ ok?: boolean; updated?: number }>(ENDPOINT, {
         method: 'PUT',
-        body: { emails: toRaw(keys), status, ...(message !== undefined ? { message } : {}) },
+        body: {
+          emails: toRaw(keys),
+          status,
+          ...(message !== undefined ? { message } : {}),
+          ...(acceptedDepartment !== undefined ? { acceptedDepartment } : {}),
+        },
       });
       if (!res.ok || !res.data?.ok) {
         showToast(res.data?.message ?? 'Enregistrement impossible.', 'error');
@@ -449,12 +518,13 @@ export default function DeliberationPanel({ candidatures, bookingByEmail, call }
     if (row) {
       dialogNode = (
         <DecisionDialog
+          candidate={row.c}
           name={fullName(row.c)}
           email={row.c.email}
           current={row.decision}
           onClose={closeDialog}
-          onSave={async (status, message) => {
-            const done = await saveDecision([row.key], status, message);
+          onSave={async (status, message, acceptedDepartment) => {
+            const done = await saveDecision([row.key], status, message, acceptedDepartment);
             if (done) closeDialog();
             return done;
           }}
@@ -785,6 +855,11 @@ export default function DeliberationPanel({ candidatures, bookingByEmail, call }
                         <span className={`${adminStyles.status} ${STATUS_TONE[decision.status]}`}>
                           {RESULT_LABELS[decision.status]}
                         </span>
+                        {decision.status === 'accepted' && decision.acceptedDepartment && (
+                          <span className={styles.subtleLine}>
+                            Accepté en <strong>{DEPARTMENT_LABELS[decision.acceptedDepartment]}</strong>
+                          </span>
+                        )}
                         <span className={styles.subtleLine}>
                           {decision.published
                             ? `Publié le ${formatDateTime(decision.publishedAt)}`

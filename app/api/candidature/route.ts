@@ -5,6 +5,7 @@ import { sendCandidatureConfirmation, notifyRhNewCandidature } from '@/lib/email
 import { DEPARTMENT_LABELS } from '@/lib/interview';
 import { candidatureSchema, departementPrincipal } from '@/lib/candidature';
 import { getServiceWindowStates } from '@/lib/settings-store';
+import { getNotificationSettings } from '@/lib/notification-settings-store';
 import { formatServiceDateTime } from '@/lib/service-window';
 
 /**
@@ -156,10 +157,16 @@ export async function POST(request: Request) {
 
   const departementLabel = DEPARTMENT_LABELS[departement];
 
+  // L'admin décide (Réglages > E-mail de confirmation) si le candidat reçoit
+  // un e-mail de confirmation. La notification interne à l'équipe RH part toujours.
+  const { candidatureEmail } = await getNotificationSettings();
+
   // Les emails ne bloquent jamais la réponse : un échec d'envoi est loggé
   // côté serveur (voir lib/email.ts) mais la candidature est déjà enregistrée.
   await Promise.allSettled([
-    sendCandidatureConfirmation(email, result.data.nomPrenom, departementLabel),
+    candidatureEmail
+      ? sendCandidatureConfirmation(email, result.data.nomPrenom, departementLabel)
+      : Promise.resolve(),
     notifyRhNewCandidature(email, result.data.nomPrenom, departementLabel),
   ]);
 

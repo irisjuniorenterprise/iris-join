@@ -62,7 +62,7 @@ type Copy = {
   icon: 'Check' | 'Heart' | 'Calendar';
   chip: string;
   title: string;
-  text: (department: string | null) => string;
+  text: (department: string | null, departmentChanged: boolean) => string;
   hint?: string;
 };
 
@@ -72,8 +72,10 @@ const COPY: Record<ResultStatus, Copy> = {
     icon: 'Check',
     chip: 'Accepté(e)',
     title: 'Félicitations, vous êtes accepté(e) !',
-    text: (dept) =>
-      `Votre candidature${dept ? ` pour le département ${dept}` : ''} a été retenue. Bienvenue chez IRIS Junior Entreprise !`,
+    text: (dept, changed) =>
+      changed && dept
+        ? `Au vu de votre profil et de vos échanges lors de l’entretien, l’équipe IRIS JE a le plaisir de vous accepter au sein du département ${dept}. Bienvenue chez IRIS Junior Entreprise !`
+        : `Votre candidature${dept ? ` pour le département ${dept}` : ''} a été retenue. Bienvenue chez IRIS Junior Entreprise !`,
   },
   rejected: {
     tone: 'neutral',
@@ -275,7 +277,7 @@ function PublishedResult({ result, email }: { result: CandidateResult; email: st
 
       <div className={styles.resultBody}>
         <h3 className={styles.resultTitle}>{copy.title}</h3>
-        <p className={styles.text}>{copy.text(result.departmentLabel)}</p>
+        <p className={styles.text}>{copy.text(result.departmentLabel, result.departmentChanged === true)}</p>
 
         {result.departmentLabel && (
           <span className={styles.dept}>

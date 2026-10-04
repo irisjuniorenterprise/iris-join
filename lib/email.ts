@@ -178,6 +178,9 @@ export async function sendInterviewReminder(
  * Envoyé par l'administration, à la demande. Renvoie true si l'e-mail est
  * bien parti (contrairement aux autres, l'admin doit savoir s'il a échoué).
  * Police Verdana, texte #1a3969.
+ *
+ * `departmentChanged` : le candidat est accepté dans un autre département que
+ * son 1er choix (`departement` est alors le département d'acceptation).
  */
 export async function sendResultEmail(
   to: string,
@@ -185,6 +188,7 @@ export async function sendResultEmail(
   departement: string,
   status: ResultStatus,
   message?: string,
+  departmentChanged = false,
 ): Promise<boolean> {
   const c = RESULT_TEXT_COLOR;
   const p = `font-family: ${EMAIL_FONT}; color: ${c}; line-height: 1.6;`;
@@ -204,8 +208,11 @@ export async function sendResultEmail(
       body: `
         <p style="${p}">Bonjour ${name},</p>
         <p style="${p}">
-          Nous avons le plaisir de vous annoncer que votre candidature pour le département
-          <strong>${dept}</strong> a été retenue. Bienvenue chez IRIS Junior Entreprise !
+          ${
+            departmentChanged
+              ? `Au vu de votre profil et de nos échanges lors de l'entretien, nous avons le plaisir de vous annoncer que vous êtes accepté(e) au sein du département <strong>${dept}</strong>. Bienvenue chez IRIS Junior Entreprise !`
+              : `Nous avons le plaisir de vous annoncer que votre candidature pour le département <strong>${dept}</strong> a été retenue. Bienvenue chez IRIS Junior Entreprise !`
+          }
         </p>
         ${note}
         ${button}`,

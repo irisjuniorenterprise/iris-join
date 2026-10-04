@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { denyResponse, requireAdmin } from '@/lib/admin-auth';
 import { getAdminDb } from '@/lib/firebase-admin';
-import { DEPARTMENT_LABELS, normalizeDepartment } from '@/lib/interview';
+import { DEPARTMENT_KEYS, DEPARTMENT_LABELS, normalizeDepartment } from '@/lib/interview';
 import { isEmailConfigured, sendResultEmail } from '@/lib/email';
 import {
   RESULT_MESSAGE_MAX,
@@ -41,6 +41,8 @@ const putSchema = z.object({
   emails: emailList,
   status: z.enum(RESULT_STATUSES).nullable(),
   message: z.string().trim().max(RESULT_MESSAGE_MAX).optional(),
+  /** Département d'acceptation si différent du 1er choix ; null = retour au 1er choix. */
+  acceptedDepartment: z.enum(DEPARTMENT_KEYS).nullable().optional(),
 });
 
 const postSchema = z.discriminatedUnion('action', [
@@ -76,7 +78,7 @@ export async function PUT(request: Request) {
   const parsed = putSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return fail('Données invalides.', 400);
 
-  const { emails, status, message } = parsed.data;
+  const { emails, status, message, acceptedDepartment } = parsed.data;
 
   try {
     // Une décision ne peut concerner qu'un candidat qui a réellement postulé.
@@ -93,7 +95,10 @@ export async function PUT(request: Request) {
     const valid = emails.filter((email) => known.has(normEmail(email)));
     if (valid.length === 0) return fail("Aucune candidature ne correspond à ces e-mails.", 404);
 
-    const updated = await setDecisions(valid, status, message, check.email);
+    const updated =
+      acceptedDepartment === undefined
+        ? await setDecisions(valid, status, message, check.email)
+        : await setDecisions(valid, status, message, check.email, acceptedDepartment);
     return NextResponse.json(
       { ok: true, updated, skipped: emails.length - valid.length },
       { headers: NO_STORE },
@@ -162,13 +167,31 @@ export async function POST(request: Request) {
         if (!decision?.published) return { email, ok: false, reason: 'not-published' as const };
         if (!candidature) return { email, ok: false, reason: 'no-candidature' as const };
 
-        const sent = await sendResultEmail(
-          candidature.to,
-          candidature.nomPrenom,
-          candidature.department,
-          decision.status,
-          decision.message,
-        );
+        // Accepté dans un autre département que son 1er choix : l'e-mail annonce
+        // le département d'acceptation (et le précise au candidat).
+        const acceptedLabel =
+          decision.status === 'accepted' && decision.acceptedDepartment
+            ? DEPARTMENT_LABELS[decision.acceptedDepartment]
+            : null;
+        const departmentLabel = acceptedLabel ?? candidature.department;
+        const departmentChanged = acceptedLabel !== null && acceptedLabel !== candidature.department;
+
+        const sent = departmentChanged
+          ? await sendResultEmail(
+              candidature.to,
+              candidature.nomPrenom,
+              departmentLabel,
+              decision.status,
+              decision.message,
+              true,
+            )
+          : await sendResultEmail(
+              candidature.to,
+              candidature.nomPrenom,
+              departmentLabel,
+              decision.status,
+              decision.message,
+            );
         if (!sent) return { email, ok: false, reason: 'smtp-error' as const };
 
         await markEmailSent(key);

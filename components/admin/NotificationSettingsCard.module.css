@@ -1,0 +1,127 @@
+/* components/admin/NotificationSettingsCard.module.css
+ *
+ * Boutons radio « Activé / Désactivé » du réglage de notification.
+ * Même langage visuel que les cartes de choix du formulaire de candidature.
+ */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  margin-bottom: 0.6rem;
+  padding: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-primary, #1f2937);
+}
+
+.option {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.8rem 0.95rem;
+  border: 1.5px solid var(--border, #e5e7eb);
+  border-radius: var(--radius-sm, 12px);
+  background: var(--surface, #ffffff);
+  cursor: pointer;
+  transition:
+    border-color var(--t-fast, 0.2s),
+    background-color var(--t-fast, 0.2s),
+    box-shadow var(--t-fast, 0.2s);
+}
+
+.option:hover {
+  border-color: var(--border-strong, #cbd5e1);
+  background: var(--surface-hover, #f9fafb);
+}
+
+.optionOn,
+.optionOn:hover {
+  border-color: var(--primary, #1a3969);
+  background: rgba(26, 57, 105, 0.05);
+  box-shadow: 0 0 0 3px rgba(26, 57, 105, 0.1);
+}
+
+/* Le vrai <input> recouvre la carte (invisible) : clavier et lecteurs d'écran restent natifs. */
+.radio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.dot {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 0.1rem;
+  border: 2px solid var(--border-strong, #cbd5e1);
+  border-radius: 50%;
+  background: var(--surface, #ffffff);
+  transition: border-color var(--t-fast, 0.2s);
+}
+
+.dot::after {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--primary, #1a3969);
+  transform: scale(0);
+  transition: transform var(--t-fast, 0.2s);
+}
+
+.optionOn .dot {
+  border-color: var(--primary, #1a3969);
+}
+
+.optionOn .dot::after {
+  transform: scale(1);
+}
+
+.radio:focus-visible ~ .dot {
+  outline: 3px solid var(--focus, #5ab8de);
+  outline-offset: 2px;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-secondary, #6b7280);
+}
+
+.text strong {
+  font-size: 0.92rem;
+  color: var(--text-primary, #1f2937);
+}
+
+.group:disabled .option {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .option,
+  .dot,
+  .dot::after {
+    transition: none;
+  }
+}

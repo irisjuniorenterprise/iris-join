@@ -20,6 +20,7 @@ import InterviewsPanel from './InterviewsPanel';
 import DeliberationPanel from './DeliberationPanel';
 import SlotsPanel from './SlotsPanel';
 import SettingsPanel from './SettingsPanel';
+import type { NotificationSettings } from '@/lib/notification-settings';
 import type { ServiceKey, ServiceWindow, ServiceWindows } from '@/lib/service-window';
 import {
   ConfirmDialog,
@@ -59,6 +60,7 @@ export default function AdminDashboard() {
   const [message, setMessage] = useState('');
   const [data, setData] = useState<Overview | null>(null);
   const [windows, setWindows] = useState<ServiceWindows | null>(null);
+  const [notifications, setNotifications] = useState<NotificationSettings | null>(null);
   const [tab, setTab] = useState<Tab>('candidatures');
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -111,12 +113,17 @@ export default function AdminDashboard() {
   }, [configured, loading, uid, load]);
 
   const loadSettings = useCallback(async () => {
-    const res = await call<{ windows: ServiceWindows }>('/api/admin/settings');
+    const [res, notif] = await Promise.all([
+      call<{ windows: ServiceWindows }>('/api/admin/settings'),
+      call<{ settings: NotificationSettings }>('/api/admin/notifications'),
+    ]);
     if (res.ok && res.data?.windows) {
       setWindows(res.data.windows);
     } else {
       showToast(res.data?.message ?? "Impossible de charger les périodes de disponibilité.", 'error');
     }
+    // Un échec ici n'empêche pas d'afficher les périodes : la carte signale l'erreur.
+    if (notif.ok && notif.data?.settings) setNotifications(notif.data.settings);
   }, [call, showToast]);
 
   useEffect(() => {
@@ -152,6 +159,25 @@ export default function AdminDashboard() {
     }
     setWindows(res.data.windows);
     showToast('Période mise à jour.', 'success');
+    return true;
+  }
+
+  async function saveNotifications(candidatureEmail: boolean): Promise<boolean> {
+    const res = await call<{ settings: NotificationSettings }>('/api/admin/notifications', {
+      method: 'PUT',
+      body: { candidatureEmail },
+    });
+    if (!res.ok || !res.data?.settings) {
+      showToast(res.data?.message ?? 'Enregistrement impossible.', 'error');
+      return false;
+    }
+    setNotifications(res.data.settings);
+    showToast(
+      res.data.settings.candidatureEmail
+        ? 'E-mail de confirmation activé.'
+        : 'E-mail de confirmation désactivé.',
+      'success',
+    );
     return true;
   }
 
@@ -567,7 +593,14 @@ export default function AdminDashboard() {
         {tab === 'slots' && (
           <SlotsPanel slots={data.slots} candidatureByEmail={candidatureByEmail} onRequest={setDialog} />
         )}
-        {tab === 'settings' && <SettingsPanel windows={windows} onSave={saveServiceWindow} />}
+        {tab === 'settings' && (
+          <SettingsPanel
+            windows={windows}
+            onSave={saveServiceWindow}
+            notifications={notifications}
+            onSaveNotifications={saveNotifications}
+          />
+        )}
       </div>
 
       {dialogNode}
