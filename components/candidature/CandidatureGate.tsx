@@ -26,7 +26,7 @@ type Props = {
 
 export default function CandidatureGate({ status }: Props) {
   return (
-    <div className="form-card">
+    <div className={`form-card ${styles.card}`}>
       <h2 id="candidature-form-title" className={styles.cardTitle}>
         Formulaire de candidature
       </h2>

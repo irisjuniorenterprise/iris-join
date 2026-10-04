@@ -14,3 +14,18 @@
     margin-bottom: 1.1rem;
   }
 }
+
+/* Carte du formulaire : marges internes réduites sur mobile pour laisser
+   le maximum de largeur aux champs (la règle .form-card globale garde
+   2.25rem partout). Sélecteur doublé pour l'emporter sur .form-card. */
+@media (max-width: 640px) {
+  .card.card {
+    padding: 1.5rem 1.15rem;
+  }
+}
+
+@media (max-width: 400px) {
+  .card.card {
+    padding: 1.25rem 0.85rem;
+  }
+}

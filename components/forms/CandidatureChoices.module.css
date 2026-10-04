@@ -37,6 +37,10 @@
   grid-template-columns: 1fr;
 }
 
+.grid > * {
+  min-width: 0;
+}
+
 .option {
   position: relative;
   display: block;
@@ -208,7 +212,21 @@
   }
 
   .box {
-    padding: 0.65rem 0.75rem;
+    min-height: 2.75rem; /* cible tactile >= 44 px */
+    padding: 0.6rem 0.75rem;
+  }
+
+  .groupLabel {
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+  }
+}
+
+/* Très petits écrans : libellés d'options toujours entiers. */
+@media (max-width: 360px) {
+  .box {
+    gap: 0.5rem;
+    font-size: 0.88rem;
   }
 }
 
