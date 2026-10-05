@@ -4,7 +4,7 @@ import { Montserrat } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 import Header from '@/components/layout/Header';
-import Footer from '@/components/layout/Footer';
+import SiteFooter from '@/components/layout/SiteFooter';
 import Providers from './providers';
 import { buildMetadata, organizationJsonLd } from '@/lib/metadata';
 import { SITE_NAME } from '@/lib/config';
@@ -56,7 +56,7 @@ export default function RootLayout({
         <Providers>
           <Header />
           <main id="main">{children}</main>
-          <Footer />
+          <SiteFooter />
         </Providers>
       </body>
     </html>

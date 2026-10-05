@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { PARENT_SITE_URL, LINKEDIN_URL } from '@/lib/config';
+import { DEFAULT_FOOTER_LINKS, type FooterLinks } from '@/lib/footer-links';
 
 const socialIcons = {
   linkedin: (
@@ -40,7 +41,12 @@ const socialIcons = {
   ),
 };
 
-export default function Footer() {
+type FooterProps = {
+  /** Liens du parcours candidat à afficher (décidés côté serveur par SiteFooter). */
+  links?: FooterLinks;
+};
+
+export default function Footer({ links = DEFAULT_FOOTER_LINKS }: FooterProps) {
   const [year, setYear] = useState(2026);
 
   useEffect(() => {
@@ -57,12 +63,21 @@ export default function Footer() {
               <li>
                 <Link href="/">Accueil</Link>
               </li>
-              <li>
-                <Link href="/candidature">Déposer ma candidature</Link>
-              </li>
-              <li>
-                <Link href="/entretien">Réserver un entretien</Link>
-              </li>
+              {links.candidature && (
+                <li>
+                  <Link href="/candidature">Déposer ma candidature</Link>
+                </li>
+              )}
+              {links.entretien && (
+                <li>
+                  <Link href="/entretien">Réserver un entretien</Link>
+                </li>
+              )}
+              {links.resultats && (
+                <li>
+                  <Link href="/resultats">Consulter mon résultat</Link>
+                </li>
+              )}
             </ul>
           </div>
 
