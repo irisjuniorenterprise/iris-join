@@ -25,7 +25,7 @@ const STEPS: Step[] = [
     icon: Icons.Edit,
     title: 'Candidature en ligne',
     description:
-      'Renseignez votre profil et votre motivation pour le département de votre choix. Quinze minutes suffisent.',
+      'Renseignez votre profil et votre motivation pour le département de votre choix. Cinq minutes suffisent.',
     meta: '≈ 5 min',
     href: '/candidature',
     cta: 'Déposer ma candidature',
