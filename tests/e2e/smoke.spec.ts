@@ -19,7 +19,7 @@ test.describe('navigation publique', () => {
 
   test('la page d’accueil annonce les 4 départements', async ({ page }) => {
     await page.goto('/');
-    for (const dept of ['IT', 'Marketing', 'Études', 'Développement commercial']) {
+    for (const dept of ['IT', 'Marketing', 'Études', 'Dév-Co']) {
       await expect(page.getByRole('heading', { name: dept, exact: true }).first()).toBeVisible();
     }
   });
