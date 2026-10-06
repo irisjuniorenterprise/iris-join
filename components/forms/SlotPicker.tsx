@@ -23,8 +23,12 @@ import ScrollDownButton, { type ScrollDownStep } from '@/components/ui/ScrollDow
 import InterviewCountdown from '@/components/forms/InterviewCountdown';
 import {
   DEPARTMENT_LABELS,
-  getDayParts,
+  INTERVIEW_DURATION_MINUTES,
   INTERVIEW_MODE_LABELS,
+  REMINDER_LEAD_HOURS,
+  formatClockTunis,
+  getDayParts,
+  getSlotEndMs,
   type DepartmentKey,
   type InterviewMode,
 } from '@/lib/interview';
@@ -76,6 +80,18 @@ function plural(count: number, one: string, many: string): string {
   return count > 1 ? many : one;
 }
 
+/** Icône du mode d'entretien : globe pour « En ligne », repère pour « Présentiel ». */
+function modeIcon(mode: InterviewMode): IconComponent {
+  return mode === 'en-ligne' ? Icons.Globe : Icons.MapPin;
+}
+
+/** « 10:30 – 11:00 » (heure de Tunis). Retombe sur l'heure de début si la date est invalide. */
+function timeRange(date: string, time: string): string {
+  const end = getSlotEndMs(date, time);
+  if (Number.isNaN(end)) return time;
+  return `${time} – ${formatClockTunis(end)}`;
+}
+
 /* ------------------------------------------------------------------ */
 /* Petits blocs d'interface                                             */
 /* ------------------------------------------------------------------ */
@@ -118,6 +134,31 @@ function LoadingSkeleton() {
           <div key={i} className={`${styles.skeleton} ${styles.skeletonSlot}`} />
         ))}
       </div>
+    </div>
+  );
+}
+
+type StepHeaderProps = {
+  id?: string;
+  step: number;
+  title: string;
+  meta?: ReactNode;
+};
+
+/** En-tête d'étape : pastille numérotée, titre et information contextuelle à droite. */
+function StepHeader({ id, step, title, meta }: StepHeaderProps) {
+  return (
+    <div className={styles.stepHeader}>
+      <h3 className={styles.stepTitle} id={id}>
+        <span className={styles.stepNum} aria-hidden="true">
+          {step}
+        </span>
+        <span className={styles.stepTitleText}>
+          <span className={styles.stepKicker}>Étape {step} sur 2</span>
+          {title}
+        </span>
+      </h3>
+      {meta && <p className={styles.stepMeta}>{meta}</p>}
     </div>
   );
 }
@@ -234,6 +275,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
   }, [visibleSlots]);
 
   const currentDay = days.some((d) => d.date === activeDay) ? activeDay : (days[0]?.date ?? null);
+  const currentDayParts = currentDay ? getDayParts(currentDay) : null;
   const daySlots = visibleSlots.filter((s) => s.date === currentDay);
   const periods = [
     { key: 'morning', label: 'Matin', items: daySlots.filter((s) => s.time < '12:00') },
@@ -372,6 +414,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
   if (bookedSlot) {
     const booked = getDayParts(bookedSlot.date);
     const bookedDept = DEPARTMENT_LABELS[bookedSlot.department] ?? bookedSlot.department;
+    const BookedModeIcon = modeIcon(bookedSlot.mode);
     return (
       <div className="form-card">
         <div className={styles.success} data-dept={bookedSlot.department} role="status">
@@ -380,24 +423,46 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
           </span>
           <h3 className={styles.successTitle}>Entretien confirmé !</h3>
           <p className={styles.successText}>
-            Une confirmation a été envoyée à <strong>{verifiedEmail}</strong>.
+            Un rappel sera envoyé à <strong>{verifiedEmail}</strong> {REMINDER_LEAD_HOURS}&nbsp;h avant
+            votre entretien.
           </p>
+
           <ul className={styles.successList}>
-            <li className={styles.successItem}>
-              <Icons.Calendar size={20} />
-              {booked.long}
+            <li className={`${styles.successItem} ${styles.successItemWide}`}>
+              <span className={styles.successItemIcon}>
+                <Icons.Calendar size={18} />
+              </span>
+              <span className={styles.successItemBody}>
+                <span className={styles.successItemLabel}>Date</span>
+                <span className={styles.successItemValue}>{booked.long}</span>
+              </span>
             </li>
             <li className={styles.successItem}>
-              <Icons.Clock size={20} />
-              {bookedSlot.time}
+              <span className={styles.successItemIcon}>
+                <Icons.Clock size={18} />
+              </span>
+              <span className={styles.successItemBody}>
+                <span className={styles.successItemLabel}>Horaire</span>
+                <span className={styles.successItemValue}>{timeRange(bookedSlot.date, bookedSlot.time)}</span>
+              </span>
             </li>
             <li className={styles.successItem}>
-              <Icons.Briefcase size={20} />
-              {bookedDept}
+              <span className={styles.successItemIcon}>
+                <BookedModeIcon size={18} />
+              </span>
+              <span className={styles.successItemBody}>
+                <span className={styles.successItemLabel}>Mode</span>
+                <span className={styles.successItemValue}>{INTERVIEW_MODE_LABELS[bookedSlot.mode]}</span>
+              </span>
             </li>
-            <li className={styles.successItem}>
-              <Icons.MapPin size={20} />
-              {INTERVIEW_MODE_LABELS[bookedSlot.mode]}
+            <li className={`${styles.successItem} ${styles.successItemWide}`}>
+              <span className={styles.successItemIcon}>
+                <Icons.Briefcase size={18} />
+              </span>
+              <span className={styles.successItemBody}>
+                <span className={styles.successItemLabel}>Département</span>
+                <span className={styles.successItemValue}>{bookedDept}</span>
+              </span>
             </li>
           </ul>
 
@@ -423,7 +488,10 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
         <p className={styles.bannerKicker}>Département visé</p>
         <p className={styles.bannerTitle}>{deptLabel}</p>
       </div>
-      <p className={styles.bannerHint}>Seuls les créneaux de ce département vous sont proposés.</p>
+      <p className={styles.bannerHint}>
+        <Icons.Info size={14} />
+        <span>Seuls les créneaux de ce département vous sont proposés.</span>
+      </p>
     </header>
   );
 
@@ -443,28 +511,33 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
   }
 
   const selectedParts = selected ? getDayParts(selected.date) : null;
+  const SelectedModeIcon = selected ? modeIcon(selected.mode) : null;
 
   return (
     <div className="form-card">
       <div className={styles.root} data-dept={department}>
         {banner}
 
+        {/* ------------------------- Étape 1 : jour ------------------------- */}
         <section
           ref={daysRef}
           tabIndex={-1}
           className={styles.stepSection}
           aria-labelledby="slot-step-day"
         >
-          <h3 className={styles.stepTitle} id="slot-step-day">
-            <span className={styles.stepNum}>1</span>
-            Choisissez un jour
-          </h3>
+          <StepHeader
+            id="slot-step-day"
+            step={1}
+            title="Choisissez un jour"
+            meta={`${days.length} ${plural(days.length, 'jour proposé', 'jours proposés')}`}
+          />
 
           <div className={styles.dayList} role="tablist" aria-label="Choisir un jour">
             {days.map((day, index) => {
               const parts = getDayParts(day.date);
               const isActive = currentDay === day.date;
               const isFull = day.free === 0;
+              const fill = day.total > 0 ? Math.round((day.free / day.total) * 100) : 0;
               return (
                 <button
                   key={day.date}
@@ -481,14 +554,20 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
                   }`}
                   tabIndex={isActive ? 0 : -1}
                   className={`${styles.day} ${isFull ? styles.dayFull : ''}`}
+                  style={{ '--fill': `${fill}%` } as CSSProperties}
                   onClick={() => selectDay(day.date)}
                   onKeyDown={(e) => handleTabKeyDown(e, index)}
                 >
-                  <span className={styles.dayWeek}>{parts.weekdayShort}</span>
-                  <span className={styles.dayNum}>{parts.dayNumber}</span>
-                  <span className={styles.dayMonth}>{parts.monthShort}</span>
-                  <span className={styles.dayCount}>
-                    {isFull ? 'Complet' : `${day.free} ${plural(day.free, 'libre', 'libres')}`}
+                  <span className={styles.dayHead}>{parts.weekdayShort}</span>
+                  <span className={styles.dayBody}>
+                    <span className={styles.dayNum}>{parts.dayNumber}</span>
+                    <span className={styles.dayMonth}>{parts.monthShort}</span>
+                    <span className={styles.dayMeter} aria-hidden="true">
+                      <span className={styles.dayMeterFill} />
+                    </span>
+                    <span className={styles.dayCount}>
+                      {isFull ? 'Complet' : `${day.free} ${plural(day.free, 'libre', 'libres')}`}
+                    </span>
                   </span>
                 </button>
               );
@@ -496,6 +575,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
           </div>
         </section>
 
+        {/* ------------------------ Étape 2 : heure ------------------------ */}
         <section
           ref={hoursRef}
           tabIndex={-1}
@@ -504,61 +584,119 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
           id={currentDay ? `day-panel-${currentDay}` : undefined}
           aria-labelledby={currentDay ? `day-tab-${currentDay}` : undefined}
         >
-          <h3 className={styles.stepTitle}>
-            <span className={styles.stepNum}>2</span>
-            Choisissez une heure
-          </h3>
+          <StepHeader
+            step={2}
+            title="Choisissez une heure"
+            meta={
+              currentDayParts ? (
+                <>
+                  <strong>{currentDayParts.long}</strong> · entretiens de {INTERVIEW_DURATION_MINUTES}&nbsp;min
+                </>
+              ) : undefined
+            }
+          />
 
-          {periods.map((period) => (
-            <div key={period.key} className={styles.period}>
-              <h4 className={styles.periodTitle}>{period.label}</h4>
-              <div className={styles.slotGrid} role="group" aria-label={`Créneaux — ${period.label}`}>
-                {period.items.map((slot, index) => {
-                  const isSelected = selectedSlot === slot.id;
-                  return (
-                    <button
-                      key={slot.id}
-                      type="button"
-                      className={styles.slot}
-                      style={{ '--i': index } as CSSProperties}
-                      disabled={slot.booked}
-                      aria-pressed={isSelected}
-                      aria-label={`${slot.time}${slot.booked ? ', complet' : ''}`}
-                      onClick={() => setSelectedSlot(isSelected ? null : slot.id)}
-                    >
-                      {isSelected && (
-                        <span className={styles.slotCheck} aria-hidden="true">
-                          <Icons.Check size={12} />
+          <ul className={styles.legend} aria-hidden="true">
+            <li className={styles.legendItem}>
+              <span className={`${styles.legendDot} ${styles.legendDotFree}`} />
+              Libre
+            </li>
+            <li className={styles.legendItem}>
+              <span className={`${styles.legendDot} ${styles.legendDotSelected}`} />
+              Sélectionné
+            </li>
+            {SHOW_BOOKED_SLOTS && (
+              <li className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${styles.legendDotBooked}`} />
+                Complet
+              </li>
+            )}
+          </ul>
+
+          {periods.map((period) => {
+            const freeCount = period.items.filter((s) => !s.booked).length;
+            return (
+              <div key={period.key} className={styles.period}>
+                <h4 className={styles.periodTitle}>
+                  {period.label}
+                  <span className={styles.periodCount}>
+                    {freeCount === 0 ? 'Complet' : `${freeCount} ${plural(freeCount, 'libre', 'libres')}`}
+                  </span>
+                </h4>
+                <div className={styles.slotGrid} role="group" aria-label={`Créneaux — ${period.label}`}>
+                  {period.items.map((slot, index) => {
+                    const isSelected = selectedSlot === slot.id;
+                    const SlotModeIcon = modeIcon(slot.mode);
+                    return (
+                      <button
+                        key={slot.id}
+                        type="button"
+                        className={styles.slot}
+                        style={{ '--i': index } as CSSProperties}
+                        disabled={slot.booked}
+                        aria-pressed={isSelected}
+                        aria-label={`${slot.time}${slot.booked ? ', complet' : ''}`}
+                        onClick={() => setSelectedSlot(isSelected ? null : slot.id)}
+                      >
+                        <span className={styles.slotRadio} aria-hidden="true">
+                          {isSelected && <Icons.Check size={12} />}
                         </span>
-                      )}
-                      <span className={styles.slotTime}>{slot.time}</span>
-                      <span className={styles.slotMode}>{INTERVIEW_MODE_LABELS[slot.mode]}</span>
-                      <span className={styles.slotState}>{slot.booked ? 'Complet' : 'Libre'}</span>
-                    </button>
-                  );
-                })}
+                        <span className={styles.slotBody}>
+                          <span className={styles.slotTime}>{slot.time}</span>
+                          <span className={styles.slotMeta}>
+                            <SlotModeIcon size={12} />
+                            {INTERVIEW_MODE_LABELS[slot.mode]}
+                          </span>
+                        </span>
+                        {slot.booked && <span className={styles.slotTag}>Complet</span>}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </section>
 
-        {selected && selectedParts && (
+        {/* ----------------------- Récapitulatif ----------------------- */}
+        {selected && selectedParts && SelectedModeIcon && (
           <div ref={summaryRef} className={styles.summary} role="status" aria-live="polite">
-            <div className={styles.summaryInfo}>
+            <div className={styles.summaryHead}>
               <span className={styles.summaryBadge} aria-hidden="true">
                 <Icons.Calendar size={20} />
               </span>
-              <div>
+              <div className={styles.summaryTitleBlock}>
                 <p className={styles.summaryLabel}>Créneau sélectionné</p>
-                <p className={styles.summaryValue}>
-                  {selectedParts.long} · {selected.time}
-                </p>
-                <p className={styles.summaryMeta}>{INTERVIEW_MODE_LABELS[selected.mode]}</p>
-                <p className={styles.summaryMeta}>
-                  Confirmation envoyée à <strong>{verifiedEmail}</strong>
-                </p>
+                <p className={styles.summaryValue}>{selectedParts.long}</p>
               </div>
             </div>
+
+            <dl className={styles.summaryFacts}>
+              <div className={styles.summaryFact}>
+                <dt>Horaire</dt>
+                <dd>{timeRange(selected.date, selected.time)}</dd>
+              </div>
+              <div className={styles.summaryFact}>
+                <dt>Durée</dt>
+                <dd>{INTERVIEW_DURATION_MINUTES}&nbsp;min</dd>
+              </div>
+              <div className={styles.summaryFact}>
+                <dt>Mode</dt>
+                <dd>
+                  <SelectedModeIcon size={14} />
+                  {INTERVIEW_MODE_LABELS[selected.mode]}
+                </dd>
+              </div>
+              <div className={styles.summaryFact}>
+                <dt>Département</dt>
+                <dd>{deptLabel}</dd>
+              </div>
+            </dl>
+
+            <p className={styles.summaryNote}>
+              Un rappel sera envoyé à <strong>{verifiedEmail}</strong> {REMINDER_LEAD_HOURS}&nbsp;h avant
+              l&rsquo;entretien.
+            </p>
 
             <div className={styles.summaryActions}>
               <button
