@@ -1,0 +1,32 @@
+/* app/loading.module.css
+ *
+ * Calque de chargement plein écran, fixé à la fenêtre : il recouvre le header,
+ * le contenu et le footer, quelle que soit la position de défilement. Le logo
+ * et ses effets (respiration, point clignotant, barre) sont donc toujours
+ * visibles, sans avoir à scroller.
+ *
+ * Le header et le footer restent dans le layout (ils ne sont ni supprimés ni
+ * démontés) : ils sont simplement masqués le temps du chargement.
+ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  /* Au-dessus du header sticky et des éléments de page (≤ 100 dans globals.css). */
+  z-index: 150;
+  overflow: hidden;
+  /* Empêche le défilement de la page cachée derrière, notamment au toucher. */
+  overscroll-behavior: contain;
+  touch-action: none;
+  /* Fondu après 150 ms : une navigation rapide ne fait pas clignoter l'écran. */
+  animation: appear 0.25s ease-out 0.15s both;
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
