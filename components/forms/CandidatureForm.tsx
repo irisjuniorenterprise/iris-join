@@ -913,7 +913,7 @@ export default function CandidatureForm({ verifiedEmail }: CandidatureFormProps)
               <br />
               <small>
                 Voir notre{' '}
-                <a href="https://irisje.com/fr/confidentialite" className={styles.link} target="_blank" rel="noopener noreferrer">
+                <a href="https://www.iris-junior-entreprise.com/fr/confidentialite" className={styles.link} target="_blank" rel="noopener noreferrer">
                   politique de confidentialité
                 </a>
                 .
