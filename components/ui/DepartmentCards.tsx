@@ -10,7 +10,10 @@
 //  - clavier  : Entrée / Espace pour retourner, Échap pour revenir.
 // Au premier affichage à l'écran, les cartes « s'entrouvrent » une fois
 // (animation courte) pour signaler qu'elles sont interactives. Cette
-// animation est désactivée si l'utilisateur préfère réduire les animations.
+// animation vit sur un élément dédié (.tilt), séparé de celui qui porte le
+// retournement (.inner) : les deux ne se gênent jamais, la rotation reste
+// fluide à tout instant (même pendant le « coup d'œil »). Elle est
+// désactivée si l'utilisateur préfère réduire les animations.
 import Link from 'next/link';
 import {
   useEffect,
@@ -62,7 +65,7 @@ const DEPARTMENTS: Department[] = [
   },
   {
     key: 'dev-co',
-    label: 'Développement commercial',
+    label: 'Dév-Co',
     tone: 'commercial',
     icon: Icons.TrendUp,
     missions: [
@@ -190,6 +193,7 @@ export default function DepartmentCards() {
               onClick={() => onClick(d.key)}
               onKeyDown={(e) => onKeyDown(d.key, e)}
             >
+              <div className={styles.tilt}>
               <div className={styles.inner}>
                 {/* Face avant : le titre est un vrai <h3> (lisible par les lecteurs d'écran
                     et les tests), le bouton « Voir les missions » reste l'élément focusable. */}
@@ -245,6 +249,7 @@ export default function DepartmentCards() {
                     <Icons.ChevronRight size={16} />
                   </Link>
                 </div>
+              </div>
               </div>
             </div>
           );

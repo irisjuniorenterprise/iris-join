@@ -2,7 +2,11 @@
  *
  * Cartes départements à retournement 3D (axe vertical).
  * Les couleurs de chaque département sont portées par des variables
- * (--bg-front, --bg-back, --fg-front, --fg-back, --cta-bg, --cta-fg).
+ * (--bg-front, --bg-back, --fg-front, --fg-back, --cta-bg, --cta-fg,
+ * --line, --chip-bg, --focus-ring).
+ *
+ * Structure 3D : .card (fixe, reçoit le survol) > .tilt (animation
+ * « coup d'œil ») > .inner (retournement) > .face.
  */
 
 /* ------------------------------------------------------------------ */
@@ -96,33 +100,55 @@
 .card {
   --fg-front: #ffffff;
   --fg-back: #ffffff;
+  /* Traits et pastilles de la face arrière (teintes claires sur fond foncé). */
+  --line: rgba(255, 255, 255, 0.18);
+  --chip-bg: rgba(255, 255, 255, 0.14);
+  --chip-bg-strong: rgba(255, 255, 255, 0.18);
+  --focus-ring: #ffffff;
 
   position: relative;
   height: 320px;
   perspective: 1400px;
-  transition: transform var(--t-base);
 }
 
-.card[data-flipped='true'] {
-  transform: translateY(-4px);
+/*
+ * Le « coup d'œil » est porté par .tilt, jamais par .inner : ainsi la
+ * transition du retournement n'est ni interrompue ni relancée, et la carte
+ * pivote de façon fluide à tout instant (survol, clic, retour).
+ * L'animation n'est pas conditionnée à l'état retourné : le sélecteur ne
+ * change jamais, elle ne se relance donc pas quand la carte revient.
+ */
+.tilt {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
 }
 
+.card[data-peek='true'] .tilt {
+  animation: peek 1.15s var(--ease-out) backwards;
+  animation-delay: calc(var(--i) * 140ms);
+}
+
+/*
+ * Les deux états ont la même liste de fonctions (translateY + rotateY) :
+ * le navigateur interpole chaque fonction séparément, sans passer par une
+ * matrice (ce qui rendrait le demi-tour imprévisible). Le léger décalage
+ * vertical est appliqué ici et non sur .card : la zone de survol reste
+ * immobile, donc pas de scintillement survol / sortie sur le bord bas.
+ */
 .inner {
   position: relative;
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
+  transform: translateY(0) rotateY(0deg);
   transition: transform 0.75s var(--ease-out);
+  will-change: transform;
 }
 
 .card[data-flipped='true'] .inner {
-  transform: rotateY(180deg);
-}
-
-/* Petit « coup d'œil » unique à l'arrivée sur la section. */
-.card[data-peek='true']:not([data-flipped='true']) .inner {
-  animation: peek 1.15s var(--ease-out) backwards;
-  animation-delay: calc(var(--i) * 140ms);
+  transform: translateY(-4px) rotateY(180deg);
 }
 
 @keyframes peek {
@@ -171,6 +197,7 @@
   color: var(--fg-front);
   text-align: center;
   cursor: pointer;
+  transform: rotateY(0deg) translateZ(1px);
 }
 
 /* Halo décoratif en haut à droite. */
@@ -264,7 +291,7 @@
   background: var(--bg-back);
   color: var(--fg-back);
   text-align: left;
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) translateZ(1px);
 }
 
 .backHead {
@@ -272,7 +299,7 @@
   align-items: center;
   gap: 0.7rem;
   padding-bottom: 0.8rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid var(--line);
 }
 
 .backIcon {
@@ -282,7 +309,7 @@
   display: grid;
   place-items: center;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--chip-bg);
 }
 
 .backTitle {
@@ -327,7 +354,7 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--chip-bg-strong);
 }
 
 .cta {
@@ -362,7 +389,7 @@
 }
 
 .cta:focus-visible {
-  outline: 3px solid #ffffff;
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -399,16 +426,22 @@
 
 .commercial {
   --bg-front: linear-gradient(160deg, #e0f7fa, #b2e0e6);
-  --bg-back: linear-gradient(160deg, #1a3969, #0d2644);
+  /* Face arrière : même famille de couleurs que l'avant (cyan clair → un cran plus profond). */
+  --bg-back: linear-gradient(160deg, #b2e0e6, #8ccad5);
   --fg-front: var(--primary);
+  --fg-back: var(--primary);
   --tile-bg: rgba(26, 57, 105, 0.1);
   --tile-border: rgba(26, 57, 105, 0.22);
+  --line: rgba(26, 57, 105, 0.2);
+  --chip-bg: rgba(26, 57, 105, 0.12);
+  --chip-bg-strong: rgba(26, 57, 105, 0.14);
+  --focus-ring: var(--primary);
   --cta-bg: #ff6633;
   --cta-fg: #ffffff;
 }
 
 /* ------------------------------------------------------------------ */
-/* Mouvement réduit : pas de rotation, simple bascule de faces          */
+/* Mouvement réduit : le « coup d'œil » automatique est désactivé       */
 /* ------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
@@ -416,7 +449,7 @@
     animation: none;
   }
 
-  .card[data-peek='true']:not([data-flipped='true']) .inner {
+  .card[data-peek='true'] .tilt {
     animation: none;
   }
 }
