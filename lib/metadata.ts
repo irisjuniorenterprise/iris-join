@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import {
   SITE_NAME,
   SITE_URL,
+  PARENT_SITE_URL,
   TWITTER_HANDLE,
   DEFAULT_OG_IMAGE,
 } from './config';
@@ -28,7 +29,12 @@ export function buildMetadata({
   type = 'website',
 }: MetaOptions): Metadata {
   const url = `${SITE_URL}${path === '/' ? '' : path}`;
-  const absoluteImage = image.startsWith('http') ? image : `${SITE_URL}${image}`;
+
+  // Toujours une URL absolue sur le domaine de CE projet (public/og-image.png),
+  // sauf si une URL complète (http/https) est passée explicitement.
+  const absoluteImage = /^https?:\/\//i.test(image)
+    ? image
+    : `${SITE_URL}${image.startsWith('/') ? image : `/${image}`}`;
 
   return {
     title,
@@ -73,7 +79,7 @@ export function organizationJsonLd() {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name: 'IRIS Junior Entreprise',
-    url: 'https://irisje.com',
+    url: PARENT_SITE_URL,
     logo: `${SITE_URL}/logo-iris.png`,
     sameAs: [
       'https://www.linkedin.com/company/iris-junior-creation/',
@@ -109,7 +115,7 @@ export function jobPostingJsonLd({
     hiringOrganization: {
       '@type': 'Organization',
       name: 'IRIS Junior Entreprise',
-      sameAs: 'https://irisje.com',
+      sameAs: PARENT_SITE_URL,
       logo: `${SITE_URL}/logo-iris.png`,
     },
     jobLocation: {
