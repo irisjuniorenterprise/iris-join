@@ -725,7 +725,7 @@ type GenerateSlotsDialogProps = {
 export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlotsDialogProps) {
   const [from, setFrom] = useState(initial?.date ?? '');
   const [to, setTo] = useState('');
-  const [skipWeekends, setSkipWeekends] = useState(true);
+  const [skipWeekends, setSkipWeekends] = useState(false);
   const [times, setTimes] = useState<string[]>(initial?.time ? [initial.time] : []);
   const [timeInput, setTimeInput] = useState('');
   const [departments, setDepartments] = useState<DepartmentKey[]>(
@@ -735,6 +735,10 @@ export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlot
   const [busy, setBusy] = useState(false);
 
   const dates = useMemo(() => expandDates(from, to, skipWeekends), [from, to, skipWeekends]);
+  const skippedWeekendDays = useMemo(
+    () => (skipWeekends ? expandDates(from, to, false).length - dates.length : 0),
+    [from, to, skipWeekends, dates.length],
+  );
   const tooManyDays = dates.length > MAX_DAYS;
   const total = dates.length * times.length * departments.length;
   const valid = dates.length > 0 && !tooManyDays && times.length > 0 && departments.length > 0 && total <= 500;
@@ -784,7 +788,11 @@ export function GenerateSlotsDialog({ initial, onClose, onSubmit }: GenerateSlot
           <CheckboxRow
             checked={skipWeekends}
             onChange={setSkipWeekends}
-            label="Ignorer les week-ends"
+            label={
+              skipWeekends && skippedWeekendDays > 0
+                ? `Ignorer les week-ends (${skippedWeekendDays} jour${skippedWeekendDays > 1 ? 's' : ''} ignoré${skippedWeekendDays > 1 ? 's' : ''})`
+                : 'Ignorer les week-ends'
+            }
           />
         )}
 
