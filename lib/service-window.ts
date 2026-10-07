@@ -47,6 +47,22 @@ export function getServiceStatus(window: ServiceWindow, now: Date = new Date()):
   return { state: 'open' };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Nombre de jours restants avant la fermeture d'un service, arrondi au jour
+ * supérieur (il reste 1 jour ou moins → 1 = « dernier jour »).
+ * - `null` : aucune date de fermeture (le service ne ferme jamais tout seul) ;
+ * - `0`    : déjà fermé.
+ */
+export function daysUntilClose(window: ServiceWindow, now: Date = new Date()): number | null {
+  if (!window.closesAt) return null;
+  const closes = new Date(window.closesAt).getTime();
+  if (Number.isNaN(closes)) return null;
+  const diff = closes - now.getTime();
+  return diff <= 0 ? 0 : Math.ceil(diff / DAY_MS);
+}
+
 export function isServiceOpen(window: ServiceWindow, now: Date = new Date()): boolean {
   return getServiceStatus(window, now).state === 'open';
 }

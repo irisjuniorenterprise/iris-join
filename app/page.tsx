@@ -6,13 +6,35 @@ import RecruitmentStatus from '@/components/ui/RecruitmentStatus';
 import BenefitCards from '@/components/ui/BenefitCards';
 import DepartmentCards from '@/components/ui/DepartmentCards';
 import JourneySteps from '@/components/ui/JourneySteps';
-import { isRecruitmentOpen, daysUntilClose, getRecruitmentWindow } from '@/lib/recruitment';
+import { getRecruitmentWindow } from '@/lib/recruitment';
+import { getServiceWindows } from '@/lib/settings-store';
+import { DEFAULT_SERVICE_WINDOWS, type ServiceWindow } from '@/lib/service-window';
 import { jobPostingJsonLd } from '@/lib/metadata';
 
-export default function HomePage() {
-  const open = isRecruitmentOpen();
-  const daysLeft = daysUntilClose();
-  const { opensAt, closesAt } = getRecruitmentWindow();
+// La période de candidature est réglée par l'admin (Firestore) et dépend de
+// l'heure : la page est calculée à chaque requête, comme /candidature, pour
+// que le badge ci-dessous soit toujours cohérent avec le formulaire.
+export const dynamic = 'force-dynamic';
+
+async function loadCandidatureWindow(): Promise<ServiceWindow> {
+  try {
+    return (await getServiceWindows()).candidature;
+  } catch (err) {
+    // Réglages illisibles : on n'empêche pas l'affichage de l'accueil.
+    console.warn('[accueil] lecture de la période de candidature impossible', err);
+    return DEFAULT_SERVICE_WINDOWS.candidature;
+  }
+}
+
+export default async function HomePage() {
+  const candidatureWindow = await loadCandidatureWindow();
+  const serverNow = new Date().toISOString();
+
+  // Les données structurées (JobPosting) exigent des dates : à défaut de
+  // période définie par l'admin, on retombe sur la fenêtre par défaut.
+  const fallback = getRecruitmentWindow();
+  const opensAt = candidatureWindow.opensAt ? new Date(candidatureWindow.opensAt) : fallback.opensAt;
+  const closesAt = candidatureWindow.closesAt ? new Date(candidatureWindow.closesAt) : fallback.closesAt;
 
   return (
     <>
@@ -31,7 +53,7 @@ export default function HomePage() {
       <section className="hero" id="accueil">
         <div className="hero-inner container">
           <div className="hero-content">
-            <RecruitmentStatus isOpen={open} daysLeft={daysLeft} />
+            <RecruitmentStatus serviceWindow={candidatureWindow} serverNow={serverNow} />
 
             <h1>
               Ne postulez pas juste à un club. Rejoignez{' '}
