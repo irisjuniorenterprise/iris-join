@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getVerifiedEmail: vi.fn(),
   getAdminDb: vi.fn(),
   getServiceWindowStates: vi.fn(),
+  getNotificationSettings: vi.fn(),
   sendCandidatureConfirmation: vi.fn(),
   notifyRhNewCandidature: vi.fn(),
 }));
@@ -17,6 +18,9 @@ vi.mock('@/lib/firebase-admin', () => ({
   getAdminDb: mocks.getAdminDb,
 }));
 vi.mock('@/lib/settings-store', () => ({ getServiceWindowStates: mocks.getServiceWindowStates }));
+vi.mock('@/lib/notification-settings-store', () => ({
+  getNotificationSettings: mocks.getNotificationSettings,
+}));
 vi.mock('@/lib/email', () => ({
   sendCandidatureConfirmation: mocks.sendCandidatureConfirmation,
   notifyRhNewCandidature: mocks.notifyRhNewCandidature,
@@ -51,6 +55,7 @@ beforeEach(() => {
   mocks.isFirebaseAdminConfigured.mockReturnValue(true);
   mocks.getVerifiedEmail.mockResolvedValue('candidat@example.com');
   mocks.getServiceWindowStates.mockResolvedValue(OPEN);
+  mocks.getNotificationSettings.mockResolvedValue({ candidatureEmail: true });
   mocks.sendCandidatureConfirmation.mockResolvedValue(undefined);
   mocks.notifyRhNewCandidature.mockResolvedValue(undefined);
   fake = createFakeDb({ candidatures: [] });

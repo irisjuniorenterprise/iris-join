@@ -18,8 +18,8 @@
 //                    lib/candidature-excel.ts). Le registre ne contient pas
 //                    les réponses du questionnaire : elles restent absentes.
 //
-// Candidats sans département : acceptés par défaut (allowNoDepartment=false pour
-// les refuser) — le candidat choisit alors son département en réservant son
+// Candidats sans département : refusés par défaut (allowNoDepartment=true pour
+// les accepter) — le candidat choisit alors son département en réservant son
 // entretien (voir app/api/creneaux et app/api/reservation).
 //
 // Champs optionnels de POST (flexibilité pour l'admin) :
@@ -381,8 +381,10 @@ export async function POST(request: Request) {
 
   const dryRun = form.get('dryRun') === 'true';
   const notify = form.get('notify') === 'true';
-  // Par défaut on accepte les candidats sans département (ils le choisiront à la réservation).
-  const allowNoDepartment = form.get('allowNoDepartment') !== 'false';
+  // Par défaut on REFUSE les candidats sans département : sans département, un
+  // candidat ne voit aucun créneau d'entretien. L'admin doit cocher l'option
+  // (allowNoDepartment=true) pour les accepter explicitement.
+  const allowNoDepartment = form.get('allowNoDepartment') === 'true';
   if (!dryRun && form.get('consent') !== 'true') {
     return fail('Vous devez confirmer le consentement des candidats avant d’importer.');
   }
