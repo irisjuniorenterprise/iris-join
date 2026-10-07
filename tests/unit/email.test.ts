@@ -127,7 +127,7 @@ describe('sendInterviewReminder', () => {
   it('échappe le HTML du nom', async () => {
     const email = await loadEmail(SMTP);
     await email.sendInterviewReminder('a@b.tn', '<img src=x onerror=alert(1)>', 'Lundi', '09:00');
-    expect(sentMail().html).not.toContain('<img');
+    expect(sentMail().html).not.toContain('<img src=x');
     expect(sentMail().html).toContain('&lt;img');
   });
 });
@@ -191,6 +191,26 @@ describe('sendResultEmail', () => {
 });
 
 describe('style des e-mails (lettre sur fond blanc, signée RH)', () => {
+  it('embarque les 6 icônes en pièces jointes inline (cid), jamais en lien externe', async () => {
+    const email = await loadEmail(SMTP);
+    await email.sendInterviewReminder('a@b.tn', 'Ali', 'Lundi', '09:00');
+    const mail = mocks.sendMail.mock.calls[0][0] as {
+      html: string;
+      attachments: { cid: string; contentType: string; contentDisposition: string; content: Buffer }[];
+    };
+    const cids = mail.attachments.map((a) => a.cid).sort();
+    expect(cids).toEqual(
+      ['icon-facebook', 'icon-globe', 'icon-instagram', 'icon-linkedin', 'icon-phone', 'icon-pin'].map((n) => `${n}@iris`),
+    );
+    for (const a of mail.attachments) {
+      expect(a.contentType).toBe('image/png');
+      expect(a.contentDisposition).toBe('inline');
+      expect(a.content.subarray(1, 4).toString()).toBe('PNG');
+      expect(mail.html).toContain(`src="cid:${a.cid}"`);
+    }
+    expect(mail.html).not.toMatch(/\/email\/icon-/);
+  });
+
   it('chaque e-mail : fond blanc, sans en-tête ni carte, signature de la RH', async () => {
     const email = await loadEmail({ ...SMTP, RH_NOTIFICATION_EMAIL: 'rh@iris.tn' });
     await email.sendCandidatureConfirmation('a@b.tn', 'Ali', 'IT');
@@ -207,14 +227,16 @@ describe('style des e-mails (lettre sur fond blanc, signée RH)', () => {
       expect(mail.html).toContain('Hiba SALEM');
       expect(mail.html).toContain('Responsable Ressources Humaines et Formations');
       expect(mail.html).toContain('IRIS Junior Création');
-      expect(mail.html).toContain('irisje.tn');
+      expect(mail.html).toContain('www.iris-junior-entreprise.com');
+      expect(mail.html).toContain('src="cid:icon-pin@iris"');
+      expect(mail.html).toContain('src="cid:icon-instagram@iris"');
     }
   });
 
-  it('affiche le logo seulement si EMAIL_LOGO_URL est défini', async () => {
+  it('logo : /logo-iris.png par défaut, EMAIL_LOGO_URL si défini', async () => {
     let email = await loadEmail(SMTP);
     await email.sendInterviewReminder('a@b.tn', 'Ali', 'Lundi', '09:00');
-    expect(sentMail().html).not.toContain('<img');
+    expect(sentMail().html).toMatch(/<img src="https:\/\/[^"]+\/logo-iris\.png"/);
 
     mocks.sendMail.mockClear();
     process.env.EMAIL_LOGO_URL = 'https://x.tn/logo.png';
@@ -222,6 +244,14 @@ describe('style des e-mails (lettre sur fond blanc, signée RH)', () => {
     await email.sendInterviewReminder('a@b.tn', 'Ali', 'Lundi', '09:00');
     delete process.env.EMAIL_LOGO_URL;
     expect(sentMail().html).toContain('<img src="https://x.tn/logo.png"');
+  });
+
+  it('une variable de signature vide retombe sur la valeur par défaut', async () => {
+    process.env.EMAIL_SIGNATURE_OFFICE = '';
+    const email = await loadEmail(SMTP);
+    await email.sendInterviewReminder('a@b.tn', 'Ali', 'Lundi', '09:00');
+    delete process.env.EMAIL_SIGNATURE_OFFICE;
+    expect(sentMail().html).toContain('Bureau exécutif 2025 – 2026');
   });
 });
 

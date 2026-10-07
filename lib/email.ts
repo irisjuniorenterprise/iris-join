@@ -15,6 +15,7 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { LINKEDIN_URL, SITE_URL } from './config';
 import type { ResultStatus } from './deliberation';
+import { EMAIL_ICON_ATTACHMENTS, iconCid, type EmailIconName } from './email-icons';
 
 const RH_EMAIL = process.env.RH_NOTIFICATION_EMAIL;
 
@@ -75,6 +76,8 @@ async function sendEmailStrict(params: { to: string; subject: string; html: stri
       to: params.to,
       subject: params.subject,
       html: params.html,
+      // Icônes de la signature, embarquées (cid:) : jamais d'image cassée.
+      attachments: EMAIL_ICON_ATTACHMENTS,
     });
     return true;
   } catch (err) {
@@ -107,9 +110,9 @@ function escapeHtml(value: string): string {
  * l'envoi agit pour la RH). Valeurs modifiables par variables d'environnement
  * (voir .env.example). Une variable vide ou absente = valeur par défaut ci-dessous.
  *
- * Images : logo + icônes sont servis par le site (public/logo-iris.png et
- * public/email/icon-*.png). Les e-mails ne peuvent pas embarquer d'image en
- * base64 (Gmail la bloque) : il faut des URL absolues en https.
+ * Images : les icônes (réseaux sociaux, adresse, téléphone, site) sont
+ * EMBARQUÉES dans l'e-mail (pièces jointes inline, voir lib/email-icons.ts) ;
+ * le logo est servi par le site (public/logo-iris.png, URL absolue en https).
  */
 const SIGNATURE = {
   name: process.env.EMAIL_SIGNATURE_NAME || 'Hiba SALEM',
@@ -127,8 +130,8 @@ const SIGNATURE = {
   instagramUrl: process.env.EMAIL_INSTAGRAM_URL || '',
 };
 
-/** Icône d'e-mail hébergée sur le site (public/email/<name>.png). */
-const iconUrl = (name: string) => `${SITE_URL}/email/${name}.png`;
+/** Source d'une icône embarquée : référence « cid: » vers la pièce jointe inline. */
+const iconSrc = (name: EmailIconName) => `cid:${iconCid(name)}`;
 
 function signatureHtml(color: string): string {
   const s = SIGNATURE;
@@ -138,16 +141,16 @@ function signatureHtml(color: string): string {
   const link = 'color: #1a5fd0; text-decoration: underline;';
   const text = `font-family: ${EMAIL_FONT}; color: ${color}; font-size: 15px; line-height: 1.4; margin: 0;`;
 
-  const social = (name: string, label: string, href: string) => {
-    const img = `<img src="${escapeHtml(iconUrl(name))}" alt="${label}" width="36" height="36" style="display: block; border: 0; width: 36px; height: 36px;">`;
+  const social = (name: EmailIconName, label: string, href: string) => {
+    const img = `<img src="${iconSrc(name)}" alt="${label}" width="36" height="36" style="display: block; border: 0; width: 36px; height: 36px;">`;
     return `<td style="padding: 0 5px;">${href ? `<a href="${escapeHtml(href)}" style="text-decoration: none;">${img}</a>` : img}</td>`;
   };
 
   // Ligne « icône + texte » (adresse, téléphone, site).
-  const row = (icon: string, label: string, inner: string) => `
+  const row = (icon: EmailIconName, label: string, inner: string) => `
           <tr>
             <td style="padding: 6px 10px 6px 0; vertical-align: middle;">
-              <img src="${escapeHtml(iconUrl(icon))}" alt="${label}" width="20" height="20" style="display: block; border: 0; width: 20px; height: 20px;">
+              <img src="${iconSrc(icon)}" alt="${label}" width="20" height="20" style="display: block; border: 0; width: 20px; height: 20px;">
             </td>
             <td style="padding: 6px 0; vertical-align: middle;"><span style="${text}">${inner}</span></td>
           </tr>`;
