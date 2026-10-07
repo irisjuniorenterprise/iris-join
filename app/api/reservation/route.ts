@@ -1,7 +1,13 @@
 // app/api/reservation/route.ts
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { bookSlot, getBookingForEmail, getCandidateDepartment } from '@/lib/slots-store';
+import {
+  bookSlot,
+  getBookingForEmail,
+  getCandidateDepartment,
+  setCandidateDepartment,
+} from '@/lib/slots-store';
+import { normalizeDepartment, type DepartmentKey } from '@/lib/interview';
 import { getVerifiedEmail, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getServiceWindowStates } from '@/lib/settings-store';
 import { formatServiceDateTime } from '@/lib/service-window';
@@ -10,6 +16,9 @@ const reservationSchema = z.object({
   // Les identifiants de créneaux sont des IDs de documents Firestore :
   // on refuse tout caractère (ex. "/") qui casserait le chemin du document.
   slotId: z.string().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/),
+  // Uniquement pour un candidat dont la candidature n'a pas de département
+  // (candidature importée) : le département qu'il choisit pour son entretien.
+  department: z.string().max(40).optional(),
 });
 
 /**
@@ -116,7 +125,23 @@ export async function POST(request: Request) {
       );
     }
 
-    const outcome = await bookSlot(result.data.slotId, email, candidate.department);
+    // Candidature sans département : on réserve dans le département choisi par
+    // le candidat, puis on l'enregistre sur sa candidature (une fois pour toutes).
+    let department: DepartmentKey;
+    if (candidate.status === 'no-department') {
+      const chosen = normalizeDepartment(result.data.department);
+      if (!chosen) {
+        return NextResponse.json(
+          { ok: false, message: 'Choisissez d’abord le département de votre entretien.' },
+          { status: 400 },
+        );
+      }
+      department = chosen;
+    } else {
+      department = candidate.department;
+    }
+
+    const outcome = await bookSlot(result.data.slotId, email, department);
 
     if (!outcome.ok) {
       // "duplicate-email" = règle "une seule réservation par personne" :
@@ -131,6 +156,15 @@ export async function POST(request: Request) {
         { ok: false, message: messages[outcome.reason] },
         { status: outcome.reason === 'wrong-department' ? 403 : 409 },
       );
+    }
+
+    if (candidate.status === 'no-department') {
+      try {
+        await setCandidateDepartment(email, department);
+      } catch (err) {
+        // La réservation est faite : on ne la fait pas échouer pour ça (log seulement).
+        console.error('[api/reservation] département non enregistré sur la candidature', err);
+      }
     }
 
     // Aucun e-mail à la réservation : le candidat reçoit uniquement le

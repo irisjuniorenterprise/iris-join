@@ -7,7 +7,9 @@
 // (candidatureSchema), pour que les données importées soient identiques.
 //
 // Deux formats sont pris en charge par la route d'import :
-//   1. le MODÈLE (15 colonnes, feuille « Candidatures ») → parseImportRow ;
+//   1. le MODÈLE (15 colonnes, feuille « Candidatures ») → parseImportRowLenient
+//      (seuls « Nom et prénom » et « E-mail » sont indispensables ; parseImportRow,
+//      plus strict, applique le schéma du formulaire public) ;
 //   2. le REGISTRE des candidats d'IRIS JE (10 colonnes : Prénom, Nom, CIN,
 //      E-mail, Num de téléphone, Date de naissance, Adresse, Niveau d'étude,
 //      Nationalité, Département) → lib/candidature-excel.ts (lecture) puis
@@ -261,11 +263,203 @@ export function parseImportRow(cells: Partial<Record<ImportKey, string>>): Parse
 }
 
 /* ------------------------------------------------------------------ */
-/* Format « registre » (fichier Excel des candidats d'IRIS JE)          */
+/* Validation TOLÉRANTE d'une ligne du modèle                           */
 /* ------------------------------------------------------------------ */
 
-/** Valeur écrite à la place d'une donnée absente du registre. */
+/** Valeur écrite à la place d'une donnée absente (jamais une valeur inventée). */
 export const MISSING_VALUE = '-';
+
+/**
+ * Candidature importée depuis le modèle avec tolérance : seuls le nom et
+ * l'e-mail sont indispensables (identification + e-mails + réservation
+ * d'entretien). Toute autre donnée absente ou illisible devient un tiret
+ * (MISSING_VALUE), la ligne est importée et un avertissement est affiché.
+ * Le département, s'il est inconnu, reste absent (`departements` vide, pas
+ * de champ `departement`) : le candidat le choisira en réservant son entretien.
+ */
+export type LenientCandidature = {
+  nomPrenom: string;
+  telephone: string;
+  filiere: string;
+  niveauEtudes: string;
+  /** Département unique lu par le système de créneaux (absent si inconnu). */
+  departement?: DepartmentKey;
+  /** Liste classée (vide si aucun département reconnu). */
+  departements: DepartmentKey[];
+  sourceConnaissance: string;
+  niveauFrancais: string;
+  niveauAnglais: string;
+  participationFormations: string;
+  autreEngagement: string;
+  organisationTemps: string;
+  motivation: string;
+  domaine: string;
+  remarques: string;
+};
+
+export type LenientRow = {
+  email: string;
+  data: LenientCandidature | null;
+  /** Bloquantes : nom ou e-mail absent/invalide (ou département exigé et absent). */
+  errors: string[];
+  /** Informatives : la ligne est importée malgré une donnée manquante ou illisible. */
+  warnings: string[];
+};
+
+export type LenientOptions = {
+  /**
+   * Importer aussi les candidats SANS département reconnu (défaut : oui — le
+   * candidat choisira son département au moment de réserver son entretien).
+   */
+  allowNoDepartment?: boolean;
+};
+
+const FREE_TEXT_MAX: Partial<Record<ImportKey, number>> = {
+  motivation: 400,
+  domaine: 150,
+  organisationTemps: 1500,
+  remarques: 1500,
+};
+
+export function parseImportRowLenient(
+  cells: Partial<Record<ImportKey, string>>,
+  options: LenientOptions = {},
+): LenientRow {
+  const allowNoDepartment = options.allowNoDepartment ?? true;
+  const get = (key: ImportKey) => (cells[key] ?? '').trim();
+  const label = (key: ImportKey) => COLUMN_BY_KEY.get(key)!.header;
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // --- Indispensables : e-mail (clé unique) et nom (repris dans les e-mails) ---
+  const email = get('email').toLowerCase();
+  if (!email) errors.push(`${label('email')} : obligatoire`);
+  else if (!emailSchema.safeParse(email).success) errors.push(`${label('email')} : adresse invalide`);
+
+  const name = candidatureSchema.shape.nomPrenom.safeParse(get('nomPrenom'));
+  if (!name.success) {
+    errors.push(`${label('nomPrenom')} : ${name.error.issues[0]?.message ?? 'invalide'}`);
+  }
+
+  // --- Tout le reste : tiret + avertissement, jamais bloquant ---
+  /** Liste fermée : valeur reconnue, sinon tiret (avertissement si la cellule était remplie). */
+  const enumOrDash = <T extends string>(key: ImportKey, choices: readonly T[]): string => {
+    const raw = get(key);
+    if (!raw) return MISSING_VALUE;
+    const found = matchOption(raw, choices);
+    if (found) return found;
+    warnings.push(`${label(key)} : « ${raw} » non reconnu (valeur ignorée)`);
+    return MISSING_VALUE;
+  };
+  /** Texte libre : tronqué à la longueur maximale du formulaire, sinon tiret. */
+  const textOrDash = (key: ImportKey): string => {
+    const raw = get(key);
+    if (!raw) return MISSING_VALUE;
+    const max = FREE_TEXT_MAX[key] ?? 1500;
+    if (raw.length <= max) return raw;
+    warnings.push(`${label(key)} : texte tronqué à ${max} caractères`);
+    return raw.slice(0, max);
+  };
+
+  // Téléphone (8 chiffres) — signalé s'il manque, car utile à l'équipe RH.
+  let telephone = MISSING_VALUE;
+  {
+    const raw = get('telephone');
+    if (!raw) warnings.push(`${label('telephone')} : manquant`);
+    else {
+      const digits = cleanPhone(raw);
+      if (/^[0-9]{8}$/.test(digits)) telephone = digits;
+      else warnings.push(`${label('telephone')} : « ${raw} » invalide (valeur ignorée)`);
+    }
+  }
+
+  const filiereRaw = get('filiere');
+  const filiere = enumOrDash('filiere', FILIERES);
+  if (!filiereRaw) warnings.push(`${label('filiere')} : manquante`);
+
+  // Niveau d'études : accepte aussi « 1 », « 2e », « 3ème année »…
+  let niveauEtudes: string = MISSING_VALUE;
+  {
+    const raw = get('niveauEtudes');
+    if (!raw) warnings.push(`${label('niveauEtudes')} : manquant`);
+    else {
+      const found = matchOption(raw, NIVEAUX_ETUDES);
+      const digit = /^\s*([123])/.exec(raw)?.[1];
+      const resolved = found ?? (digit ? NIVEAUX_ETUDES[Number(digit) - 1] : '');
+      if (resolved) niveauEtudes = resolved;
+      else warnings.push(`${label('niveauEtudes')} : « ${raw} » non reconnu (valeur ignorée)`);
+    }
+  }
+
+  // Départements : liste ordonnée ; les valeurs inconnues sont ignorées.
+  const departements: DepartmentKey[] = [];
+  {
+    const raw = get('departements');
+    if (!raw) {
+      if (allowNoDepartment) {
+        warnings.push(`${label('departements')} : manquant (le candidat le choisira en réservant son entretien)`);
+      }
+    } else {
+      for (const part of raw.split(/[,;|/\n]+/).map((p) => p.trim()).filter(Boolean)) {
+        const key = normalizeDepartment(part);
+        if (!key) {
+          warnings.push(`${label('departements')} : « ${part} » non reconnu (ignoré)`);
+          continue;
+        }
+        if (!departements.includes(key)) departements.push(key);
+      }
+      if (departements.length > MAX_DEPARTEMENTS_CHOISIS) {
+        warnings.push(`${label('departements')} : ${MAX_DEPARTEMENTS_CHOISIS} départements maximum (les suivants sont ignorés)`);
+        departements.length = MAX_DEPARTEMENTS_CHOISIS;
+      }
+      if (departements.length === 0 && allowNoDepartment) {
+        warnings.push('Aucun département reconnu (le candidat le choisira en réservant son entretien)');
+      }
+    }
+    if (departements.length === 0 && !allowNoDepartment) {
+      errors.push(
+        `${label('departements')} : manquant ou inconnu (sans département, le candidat devrait le choisir lui-même)`,
+      );
+    }
+  }
+
+  // Autre engagement : Oui / Non (yes/no acceptés), sinon tiret.
+  let autreEngagement: string = MISSING_VALUE;
+  {
+    const raw = foldImport(get('autreEngagement'));
+    if (raw) {
+      if (['oui', 'yes', 'o', 'y', 'true', '1'].includes(raw)) autreEngagement = 'oui';
+      else if (['non', 'no', 'n', 'false', '0'].includes(raw)) autreEngagement = 'non';
+      else warnings.push(`${label('autreEngagement')} : « ${get('autreEngagement')} » non reconnu (valeur ignorée)`);
+    }
+  }
+
+  if (errors.length > 0) return { email, data: null, errors, warnings };
+
+  const data: LenientCandidature = {
+    nomPrenom: name.success ? name.data : get('nomPrenom'),
+    telephone,
+    filiere,
+    niveauEtudes,
+    departements,
+    sourceConnaissance: enumOrDash('sourceConnaissance', SOURCES_CONNAISSANCE),
+    niveauFrancais: enumOrDash('niveauFrancais', NIVEAUX_LANGUE),
+    niveauAnglais: enumOrDash('niveauAnglais', NIVEAUX_LANGUE),
+    participationFormations: enumOrDash('participationFormations', PARTICIPATION_FORMATIONS),
+    autreEngagement,
+    organisationTemps: textOrDash('organisationTemps'),
+    motivation: textOrDash('motivation'),
+    domaine: textOrDash('domaine'),
+    remarques: textOrDash('remarques'),
+  };
+  if (departements[0]) data.departement = departements[0];
+
+  return { email, data, errors, warnings };
+}
+
+/* ------------------------------------------------------------------ */
+/* Format « registre » (fichier Excel des candidats d'IRIS JE)          */
+/* ------------------------------------------------------------------ */
 
 /**
  * Candidature issue du registre. Le registre ne contient PAS les réponses

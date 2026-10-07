@@ -5,6 +5,9 @@
 // que les créneaux du département choisi par le candidat dans son
 // formulaire de candidature : les créneaux des autres départements (qui
 // se déroulent en parallèle) ne sont jamais envoyés au navigateur.
+// Cas d'une candidature SANS département (importée par l'admin) : le
+// candidat choisit d'abord son département ici ; il est ensuite enregistré
+// sur sa candidature au moment de la réservation.
 import {
   useEffect,
   useMemo,
@@ -54,7 +57,9 @@ type BookedSlot = {
   mode: InterviewMode;
 };
 
-type Status = 'idle' | 'loading' | 'ready' | 'no-candidature' | 'error';
+type Status = 'idle' | 'loading' | 'ready' | 'no-candidature' | 'choose-department' | 'error';
+
+type DepartmentChoice = { key: DepartmentKey; label: string };
 
 type IconComponent = ComponentType<{ size?: number; className?: string }>;
 
@@ -163,6 +168,11 @@ function StepHeader({ id, step, title, meta }: StepHeaderProps) {
   );
 }
 
+/** URL des créneaux ; `department` n'est utilisé que si la candidature n'en a pas. */
+function creneauxUrl(department: DepartmentKey | null): string {
+  return department ? `/api/creneaux?department=${encodeURIComponent(department)}` : '/api/creneaux';
+}
+
 /* ------------------------------------------------------------------ */
 /* Composant principal                                                  */
 /* ------------------------------------------------------------------ */
@@ -173,6 +183,11 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
   const [status, setStatus] = useState<Status>('idle');
   const [reloadKey, setReloadKey] = useState(0);
   const [department, setDepartment] = useState<DepartmentKey | null>(null);
+  // Candidature sans département : choix proposés, choix courant, et possibilité
+  // de le modifier tant que l'entretien n'est pas réservé.
+  const [departmentChoices, setDepartmentChoices] = useState<DepartmentChoice[]>([]);
+  const [chosenDepartment, setChosenDepartment] = useState<DepartmentKey | null>(null);
+  const [canChangeDepartment, setCanChangeDepartment] = useState(false);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -198,6 +213,8 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
       setStatus('idle');
       setSlots([]);
       setDepartment(null);
+      setChosenDepartment(null);
+      setCanChangeDepartment(false);
       setBookedSlot(null);
       setSelectedSlot(null);
       return;
@@ -213,7 +230,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
         const headers = { Authorization: `Bearer ${idToken}` };
 
         const [slotsRes, bookingRes] = await Promise.all([
-          fetch('/api/creneaux', { headers, cache: 'no-store' }),
+          fetch(creneauxUrl(chosenDepartment), { headers, cache: 'no-store' }),
           fetch('/api/reservation', { headers, cache: 'no-store' }),
         ]);
         const [slotsData, bookingData] = await Promise.all([
@@ -234,6 +251,16 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
           return;
         }
 
+        // Candidature sans département : le candidat doit d'abord choisir le sien.
+        if (slotsRes.ok && slotsData?.needsDepartment && Array.isArray(slotsData.departments)) {
+          setDepartmentChoices(slotsData.departments);
+          setDepartment(null);
+          setSlots([]);
+          setCanChangeDepartment(false);
+          setStatus('choose-department');
+          return;
+        }
+
         if (!slotsRes.ok || !Array.isArray(slotsData?.slots) || !slotsData.department) {
           console.error('[creneaux] échec du chargement', slotsRes.status, slotsData);
           setStatus('error');
@@ -241,6 +268,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
         }
 
         setDepartment(slotsData.department);
+        setCanChangeDepartment(Boolean(slotsData.canChangeDepartment));
         setSlots(slotsData.slots);
         setActiveDay(pickDefaultDay(slotsData.slots));
         setSelectedSlot(null);
@@ -294,6 +322,13 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
     });
   }, [selected]);
 
+  /** Candidature sans département : le candidat choisit le sien, les créneaux sont rechargés. */
+  function chooseDepartment(key: DepartmentKey | null) {
+    setChosenDepartment(key);
+    setSelectedSlot(null);
+    setReloadKey((k) => k + 1);
+  }
+
   function selectDay(day: string) {
     setActiveDay(day);
     setSelectedSlot(null);
@@ -322,7 +357,11 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ slotId: selectedSlot }),
+        body: JSON.stringify({
+          slotId: selectedSlot,
+          // Uniquement si la candidature n'avait pas de département : celui choisi ici.
+          ...(canChangeDepartment && department ? { department } : {}),
+        }),
       });
       const data = await res.json().catch(() => null);
 
@@ -330,7 +369,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
         console.error('[reservation] échec', res.status, data);
         showToast(data?.message ?? 'Une erreur est survenue.', 'error');
         // On rafraîchit la liste : le créneau vient peut-être d'être pris.
-        const fresh = await fetch('/api/creneaux', {
+        const fresh = await fetch(creneauxUrl(canChangeDepartment ? department : null), {
           headers: { Authorization: `Bearer ${idToken}` },
           cache: 'no-store',
         })
@@ -343,6 +382,8 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
 
       showToast('Entretien confirmé !', 'success');
       setBookedSlot(data.slot);
+      // Le département choisi est maintenant enregistré sur la candidature : plus modifiable.
+      setCanChangeDepartment(false);
       setSlots((prev) => prev.map((s) => (s.id === selectedSlot ? { ...s, booked: true } : s)));
       setSelectedSlot(null);
     } catch (err) {
@@ -407,6 +448,41 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
             </button>
           }
         />
+      </div>
+    );
+  }
+
+  if (status === 'choose-department') {
+    return (
+      <div className="form-card">
+        <div className={styles.root}>
+          <Notice
+            icon={Icons.Briefcase}
+            title="Choisissez votre département"
+            text="Votre candidature ne précise pas de département. Choisissez celui pour lequel vous passez l'entretien : seuls ses créneaux vous seront proposés."
+          />
+          <div className={styles.slotGrid} role="group" aria-label="Choisir un département">
+            {departmentChoices.map((choice, i) => {
+              const ChoiceIcon = DEPARTMENT_ICONS[choice.key] ?? Icons.Briefcase;
+              return (
+                <button
+                  key={choice.key}
+                  type="button"
+                  className={styles.slot}
+                  style={{ '--i': i } as CSSProperties}
+                  onClick={() => chooseDepartment(choice.key)}
+                >
+                  <span className={styles.slotRadio} aria-hidden="true">
+                    <ChoiceIcon size={12} />
+                  </span>
+                  <span className={styles.slotBody}>
+                    <span className={styles.slotTime}>{choice.label}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     );
   }
@@ -492,6 +568,11 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
         <Icons.Info size={14} />
         <span>Seuls les créneaux de ce département vous sont proposés.</span>
       </p>
+      {canChangeDepartment && (
+        <button type="button" className="btn btn-outline" onClick={() => chooseDepartment(null)}>
+          Changer de département
+        </button>
+      )}
     </header>
   );
 

@@ -1,13 +1,16 @@
 // app/api/creneaux/route.ts
 //
 // Renvoie UNIQUEMENT les créneaux du département choisi par le candidat
-// dans son formulaire de candidature. Accès refusé si :
+// dans son formulaire de candidature. Si la candidature n'a pas de
+// département (candidature importée par l'admin), le candidat le choisit ici
+// (paramètre ?department=) : sans choix, la réponse liste les départements.
+// Accès refusé si :
 //  - la requête n'est pas authentifiée (token Firebase absent/invalide) ;
 //  - l'e-mail n'a pas soumis de candidature (il n'est pas concerné).
 import { NextResponse } from 'next/server';
 import { getCandidateDepartment, getSlotsForDepartment } from '@/lib/slots-store';
 import { getVerifiedEmail, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
-import { DEPARTMENT_LABELS } from '@/lib/interview';
+import { DEPARTMENT_KEYS, DEPARTMENT_LABELS, normalizeDepartment } from '@/lib/interview';
 import { getServiceWindowStates } from '@/lib/settings-store';
 import { formatServiceDateTime } from '@/lib/service-window';
 
@@ -68,6 +71,31 @@ export async function GET(request: Request) {
           message: "Déposez d'abord votre candidature pour accéder aux créneaux d'entretien.",
         },
         { status: 403, headers: NO_STORE },
+      );
+    }
+
+    // Candidature sans département : le candidat choisit le sien pour réserver.
+    if (candidate.status === 'no-department') {
+      const chosen = normalizeDepartment(new URL(request.url).searchParams.get('department'));
+      if (!chosen) {
+        return NextResponse.json(
+          {
+            needsDepartment: true,
+            departments: DEPARTMENT_KEYS.map((key) => ({ key, label: DEPARTMENT_LABELS[key] })),
+            slots: [],
+          },
+          { headers: NO_STORE },
+        );
+      }
+      const chosenSlots = await getSlotsForDepartment(chosen);
+      return NextResponse.json(
+        {
+          department: chosen,
+          departmentLabel: DEPARTMENT_LABELS[chosen],
+          canChangeDepartment: true,
+          slots: chosenSlots,
+        },
+        { headers: NO_STORE },
       );
     }
 

@@ -8,13 +8,19 @@
 //
 // Deux formats de fichier sont acceptés (détectés automatiquement) :
 //   • « modele »   : le modèle téléchargé ci-dessus (15 colonnes, feuille
-//                    « Candidatures »), mêmes règles que le formulaire public ;
+//                    « Candidatures »). Import TOLÉRANT : seuls « Nom et prénom »
+//                    et « E-mail » sont indispensables ; toute autre donnée
+//                    absente ou illisible devient un tiret (avertissement) ;
 //   • « registre » : le registre des candidats d'IRIS JE — colonnes Prénom,
 //                    Nom, CIN, E-mail, Num de téléphone, Date de naissance,
 //                    Adresse, Niveau d'étude, Nationalité, Département, à
 //                    n'importe quelle position de la feuille (voir
 //                    lib/candidature-excel.ts). Le registre ne contient pas
 //                    les réponses du questionnaire : elles restent absentes.
+//
+// Candidats sans département : acceptés par défaut (allowNoDepartment=false pour
+// les refuser) — le candidat choisit alors son département en réservant son
+// entretien (voir app/api/creneaux et app/api/reservation).
 //
 // Champs optionnels de POST (flexibilité pour l'admin) :
 //   • overrides : JSON { "<n° de ligne Excel>": { "<champ>": "<valeur corrigée>" } }
@@ -32,7 +38,7 @@ import { getAdminDb } from '@/lib/firebase-admin';
 import { denyResponse, requireAdmin } from '@/lib/admin-auth';
 import { sendCandidatureConfirmation } from '@/lib/email';
 import { DEPARTMENT_LABELS, type DepartmentKey } from '@/lib/interview';
-import { DEPARTEMENT_OPTIONS, departementPrincipal } from '@/lib/candidature';
+import { DEPARTEMENT_OPTIONS } from '@/lib/candidature';
 import {
   ExcelImportError,
   extractCandidates,
@@ -46,7 +52,7 @@ import {
   IMPORT_SHEET_NAME,
   buildRegistreCandidature,
   mapHeaders,
-  parseImportRow,
+  parseImportRowLenient,
   type ImportKey,
 } from '@/lib/candidature-import';
 
@@ -321,7 +327,7 @@ export async function GET(request: Request) {
     for (let row = 2; row <= IMPORT_MAX_ROWS + 1; row += 1) {
       sheet.getCell(row, idx + 1).dataValidation = {
         type: 'list',
-        allowBlank: col.optional ?? false,
+        allowBlank: true,
         formulae: [range],
         showErrorMessage: true,
         errorTitle: 'Valeur invalide',
@@ -340,6 +346,10 @@ export async function GET(request: Request) {
   }
   help.addRow({});
   help.addRow({ c: 'Important', r: `Une ligne = une candidature. ${IMPORT_MAX_ROWS} lignes maximum. Une seule candidature par e-mail.` });
+  help.addRow({
+    c: 'Données indispensables',
+    r: 'Seuls « Nom et prénom » et « E-mail » sont obligatoires. Toute autre colonne peut rester vide (le candidat est importé avec un tiret) ; un candidat sans département choisira son département en réservant son entretien.',
+  });
 
   const buffer = await wb.xlsx.writeBuffer();
   return new Response(new Uint8Array(buffer as ArrayBuffer), {
@@ -371,7 +381,8 @@ export async function POST(request: Request) {
 
   const dryRun = form.get('dryRun') === 'true';
   const notify = form.get('notify') === 'true';
-  const allowNoDepartment = form.get('allowNoDepartment') === 'true';
+  // Par défaut on accepte les candidats sans département (ils le choisiront à la réservation).
+  const allowNoDepartment = form.get('allowNoDepartment') !== 'false';
   if (!dryRun && form.get('consent') !== 'true') {
     return fail('Vous devez confirmer le consentement des candidats avant d’importer.');
   }
@@ -424,8 +435,11 @@ export async function POST(request: Request) {
   /* ---- Détection du format : modèle (en-têtes en ligne 1) sinon registre ---- */
   const templateSheet = wb.getWorksheet(IMPORT_SHEET_NAME) ?? wb.worksheets[0];
   const headerValues = (templateSheet.getRow(1).values as ExcelJS.CellValue[]).slice(1).map(cellText);
-  const { indexByKey, missing } = mapHeaders(headerValues);
-  const format: ImportFormat = missing.length === 0 ? 'modele' : 'registre';
+  const { indexByKey } = mapHeaders(headerValues);
+  // Le modèle est reconnu dès que « Nom et prénom » et « E-mail » sont présents
+  // (le registre, lui, a « Prénom » et « Nom » séparés) ; les autres colonnes sont facultatives.
+  const format: ImportFormat =
+    indexByKey.has('nomPrenom') && indexByKey.has('email') ? 'modele' : 'registre';
   const fieldDefs: FieldDef[] = format === 'modele' ? MODELE_FIELDS : REGISTRE_FIELDS;
 
   const overrides = toOverrides(rawOverrides, new Set(fieldDefs.map((f) => f.key)));
@@ -460,14 +474,14 @@ export async function POST(request: Request) {
         }
       }
 
-      const parsed = parseImportRow(cells);
+      const parsed = parseImportRowLenient(cells, { allowNoDepartment });
       const report: RowReport = {
         line: r,
         nomPrenom: cells.nomPrenom ?? '',
         email: parsed.email,
         status: 'ok',
         errors: parsed.errors,
-        warnings: [],
+        warnings: parsed.warnings,
         fields: Object.fromEntries(IMPORT_COLUMNS.map((c) => [c.key, cells[c.key] ?? ''])),
         corrected,
       };
@@ -478,13 +492,13 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const departement = departementPrincipal(parsed.data.departements);
+      // Département absent (candidat sans département) : aucun champ `departement` n'est écrit.
       register(report, {
         line: r,
         email: parsed.email,
         nomPrenom: parsed.data.nomPrenom,
-        doc: { ...parsed.data, departement, source: 'import-admin' },
-        departementLabel: labelOf(departement),
+        doc: { ...parsed.data, consentement: true, source: 'import-admin' },
+        departementLabel: labelOf(parsed.data.departement),
         corrected,
       });
     }

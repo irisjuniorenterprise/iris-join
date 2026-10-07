@@ -11,7 +11,14 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { denyResponse, requireAdmin } from '@/lib/admin-auth';
-import { assignSlot, getCandidateDepartment, releaseSlot } from '@/lib/slots-store';
+import {
+  assignSlot,
+  getCandidateDepartment,
+  getSlotDepartment,
+  releaseSlot,
+  setCandidateDepartment,
+} from '@/lib/slots-store';
+import type { DepartmentKey } from '@/lib/interview';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,7 +61,18 @@ export async function POST(request: Request) {
         return fail('Le département de cette candidature est invalide.', 409);
       }
 
-      const outcome = await assignSlot(body.slotId, body.email, candidate.department);
+      // Candidature sans département (import) : le créneau choisi par l'admin
+      // détermine le département, enregistré ensuite sur la candidature.
+      let department: DepartmentKey;
+      if (candidate.status === 'no-department') {
+        const slotDepartment = await getSlotDepartment(body.slotId);
+        if (!slotDepartment) return fail("Ce créneau n'existe plus.", 404);
+        department = slotDepartment;
+      } else {
+        department = candidate.department;
+      }
+
+      const outcome = await assignSlot(body.slotId, body.email, department);
       if (!outcome.ok) {
         const messages = {
           'not-found': "Ce créneau n'existe plus.",
@@ -63,6 +81,12 @@ export async function POST(request: Request) {
           'same-slot': 'Le candidat a déjà ce créneau.',
         };
         return fail(messages[outcome.reason], outcome.reason === 'not-found' ? 404 : 409);
+      }
+
+      if (candidate.status === 'no-department') {
+        await setCandidateDepartment(body.email, department).catch((err) =>
+          console.error('[api/admin/reservations] département non enregistré', err),
+        );
       }
 
       return NextResponse.json(

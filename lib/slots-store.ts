@@ -168,8 +168,17 @@ export async function getSlotsForDepartment(department: DepartmentKey): Promise<
 
 export type CandidateLookup =
   | { status: 'no-candidature' }
+  /** Candidature sans département renseigné (ex. candidature importée) : le candidat le choisira à la réservation. */
+  | { status: 'no-department' }
+  /** Département renseigné mais inconnu du portail. */
   | { status: 'invalid-department' }
   | { status: 'ok'; department: DepartmentKey };
+
+/** Vrai pour « pas de département » : champ absent, vide ou simple tiret (valeur des imports). */
+function isBlankDepartment(raw: unknown): boolean {
+  if (raw === undefined || raw === null) return true;
+  return typeof raw === 'string' && /^[\s\-–—_.]*$/.test(raw);
+}
 
 /**
  * Département choisi par l'e-mail dans son formulaire de candidature
@@ -183,10 +192,53 @@ export async function getCandidateDepartment(email: string): Promise<CandidateLo
   const snapshot = await db.collection('candidatures').where('email', '==', email).limit(1).get();
   if (snapshot.empty) return { status: 'no-candidature' };
 
-  const department = normalizeDepartment(snapshot.docs[0].data().departement);
-  if (!department) return { status: 'invalid-department' };
+  const raw = snapshot.docs[0].data().departement;
+  const department = normalizeDepartment(raw);
+  if (department) return { status: 'ok', department };
 
-  return { status: 'ok', department };
+  return isBlankDepartment(raw) ? { status: 'no-department' } : { status: 'invalid-department' };
+}
+
+/**
+ * Enregistre le département d'un candidat qui n'en avait pas (candidature
+ * importée sans département) — il vient de le choisir en réservant son
+ * entretien. N'écrase JAMAIS un département déjà renseigné et valide.
+ * Renvoie true si la candidature a été mise à jour.
+ */
+export async function setCandidateDepartment(
+  email: string,
+  department: DepartmentKey,
+): Promise<boolean> {
+  const db = getAdminDb();
+  if (!db) throw new Error('firestore-not-configured');
+
+  const snapshot = await db.collection('candidatures').where('email', '==', email).limit(1).get();
+  if (snapshot.empty) return false;
+
+  const doc = snapshot.docs[0];
+  const data = doc.data();
+  if (normalizeDepartment(data.departement)) return false;
+
+  const ranked = Array.isArray(data.departements)
+    ? data.departements.filter((d: unknown) => normalizeDepartment(d))
+    : [];
+  await doc.ref.update({
+    departement: department,
+    ...(ranked.length === 0 ? { departements: [department] } : {}),
+    departementChoisiALaReservation: true,
+    updatedAt: new Date().toISOString(),
+  });
+  return true;
+}
+
+/** Département d'un créneau (ou null s'il n'existe pas) — utilisé par l'attribution manuelle de l'admin. */
+export async function getSlotDepartment(slotId: string): Promise<DepartmentKey | null> {
+  const db = getAdminDb();
+  if (!db) throw new Error('firestore-not-configured');
+
+  const doc = await db.collection(COLLECTION).doc(slotId).get();
+  if (!doc.exists) return null;
+  return toSlot(doc.id, doc.data() as DocumentData)?.department ?? null;
 }
 
 /** Nom complet du candidat associé à cet e-mail (ou null si aucune candidature). */
