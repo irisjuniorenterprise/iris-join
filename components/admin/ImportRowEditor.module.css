@@ -1,0 +1,233 @@
+/* components/admin/ImportRowEditor.module.css
+   Styles de l'éditeur de ligne et des éléments de sélection/correction ajoutés
+   au rapport d'import (le reste reste dans ImportCandidaturesDialog.module.css). */
+
+/* ------------------------- Éditeur de ligne ------------------------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem 1.1rem;
+  border-radius: var(--radius-md, 16px);
+  border: 1px solid var(--accent, #5ab8de);
+  background: var(--surface, #fff);
+  box-shadow: 0 6px 18px var(--shadow);
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.6rem 0.9rem 0.6rem 1.9rem;
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(239, 68, 68, 0.07);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #b91c1c;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: 0.8rem 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.field label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+}
+
+.edited {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border-strong, #cbd5e1);
+  background: var(--surface, #fff);
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 4.2rem;
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid var(--focus, #5ab8de);
+  outline-offset: 1px;
+  border-color: var(--accent, #5ab8de);
+}
+
+.field small {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.resetBtn {
+  margin-left: auto;
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.resetBtn:hover:not(:disabled) {
+  color: #b91c1c;
+}
+
+.resetBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ------------------------- Rapport : sélection ------------------------- */
+
+.selectionBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  font-size: 0.86rem;
+  color: var(--text-secondary);
+}
+
+.selectionBar strong {
+  color: var(--primary);
+}
+
+.linkBtn {
+  padding: 0.1rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.linkBtn:hover:not(:disabled) {
+  color: var(--accent-hover, #48a4c9);
+}
+
+.linkBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cellCheck {
+  width: 2.6rem;
+  padding-right: 0 !important;
+}
+
+.cellCheck input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.cellCheck input:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.cellActions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.editBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-pill, 999px);
+  border: 1px solid var(--border-strong, #cbd5e1);
+  background: var(--surface, #fff);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.editBtn:hover:not(:disabled),
+.editBtn[aria-expanded='true'] {
+  border-color: var(--accent, #5ab8de);
+  background: rgba(90, 184, 222, 0.12);
+}
+
+.editBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.editRow > td {
+  padding: 0.5rem 1rem 1rem !important;
+  background: var(--surface-card-alt, #f6fafd) !important;
+}
+
+.correctedNote {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #b45309;
+}
+
+.unselected td {
+  opacity: 0.62;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editBtn {
+    transition: none;
+  }
+}

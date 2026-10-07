@@ -3,17 +3,24 @@
 //
 // Import Excel des candidatures, en trois temps :
 //   1. choisir le fichier (modèle OU registre des candidats) et les options ;
-//   2. « Analyser » : validation à blanc, rapport ligne par ligne dans une
-//      grande zone défilante (filtres, recherche, en-tête fixe) ;
-//   3. « Importer » : enregistrement des lignes valides, puis bilan.
+//   2. « Analyser » : validation à blanc, rapport ligne par ligne (filtres,
+//      recherche, en-tête fixe). Pour chaque ligne l'admin peut :
+//        • la COCHER / DÉCOCHER : seules les lignes cochées seront importées
+//          (ex. n'accepter qu'un seul enregistrement) ;
+//        • la CORRIGER (bouton « Modifier ») : un e-mail mal écrit, un
+//          téléphone, un département… La ligne est revalidée par le serveur
+//          avec les mêmes règles que le formulaire public ;
+//   3. « Importer » : enregistrement des lignes cochées et valides, puis bilan.
 // Appelle POST /api/admin/candidatures/import (voir la route pour le détail
-// des deux formats et des règles de validation).
-import { useMemo, useRef, useState, type DragEvent } from 'react';
+// des formats, des champs `overrides` / `selected` et des règles de validation).
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Icons } from '@/components/icons/Icons';
 import { useAuth } from '@/lib/auth';
 import Modal from './Modal';
+import ImportRowEditor, { type ImportFieldDef } from './ImportRowEditor';
 import { fold } from './shared';
 import styles from './ImportCandidaturesDialog.module.css';
+import ed from './ImportRowEditor.module.css';
 
 type Props = {
   onClose: () => void;
@@ -28,6 +35,10 @@ type RowReport = {
   status: 'ok' | 'duplicate' | 'error';
   errors: string[];
   warnings?: string[];
+  /** Valeurs éditables de la ligne (après corrections). */
+  fields?: Record<string, string>;
+  /** Champs corrigés par l'admin. */
+  corrected?: string[];
 };
 
 type ImportResponse = {
@@ -41,9 +52,14 @@ type ImportResponse = {
   errors: number;
   withWarnings?: number;
   created?: number;
+  notSelected?: number;
   emailsSent?: number;
+  fields?: ImportFieldDef[];
   rows: RowReport[];
 };
+
+/** Corrections de l'admin : n° de ligne Excel → { champ → valeur }. */
+type Overrides = Record<number, Record<string, string>>;
 
 type RowKind = 'ok' | 'warning' | 'duplicate' | 'error';
 type Filter = 'all' | RowKind;
@@ -62,15 +78,24 @@ function rowKind(row: RowReport): RowKind {
   return row.status;
 }
 
+/** Une ligne n'est importable que si le serveur la juge valide. */
+const isImportable = (row: RowReport) => row.status === 'ok';
+
 function formatSize(bytes: number): string {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} Ko` : `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
+/** Sélection de départ : toutes les lignes importables. */
+function allImportable(rows: RowReport[]): Set<number> {
+  return new Set(rows.filter(isImportable).map((r) => r.line));
+}
+
 export default function ImportCandidaturesDialog({ onClose, onImported }: Props) {
   const { getIdToken } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
+  const headerCheckRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -86,11 +111,19 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
   const [filter, setFilter] = useState<Filter>('all');
   const [query, setQuery] = useState('');
 
+  // Flexibilité admin : lignes cochées, corrections saisies, ligne en cours d'édition.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [overrides, setOverrides] = useState<Overrides>({});
+  const [editing, setEditing] = useState<number | null>(null);
+
   /* ------------------------------ Fichier ------------------------------ */
 
   function pickFile(next: File | null) {
     setError('');
     setReport(null);
+    setSelected(new Set());
+    setOverrides({});
+    setEditing(null);
     if (next && !next.name.toLowerCase().endsWith('.xlsx')) {
       setFile(null);
       setError('Format non pris en charge : choisissez un fichier Excel .xlsx.');
@@ -105,10 +138,14 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
     pickFile(e.dataTransfer.files?.[0] ?? null);
   }
 
-  // Toute modification des options invalide l'analyse précédente.
+  // Toute modification des options invalide l'analyse précédente
+  // (les corrections de l'admin sont conservées pour la nouvelle analyse).
   function changeOption(setter: (value: boolean) => void, value: boolean, invalidates: boolean) {
     setter(value);
-    if (invalidates) setReport(null);
+    if (invalidates) {
+      setReport(null);
+      setEditing(null);
+    }
   }
 
   /* ------------------------------ Appels API ------------------------------ */
@@ -145,13 +182,25 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
     }
   }
 
-  async function send(dryRun: boolean) {
-    if (!file) return;
+  /**
+   * Envoie le fichier. `dryRun` = analyse à blanc ; sinon import réel des
+   * lignes cochées. `ov` = corrections à appliquer (passées en paramètre car
+   * l'état React n'est pas encore à jour juste après une modification).
+   * `keepFor` : après une correction, on garde la sélection actuelle et on
+   * coche automatiquement la ligne corrigée si elle est devenue valide.
+   * Renvoie true si la requête a abouti.
+   */
+  async function send(
+    dryRun: boolean,
+    ov: Overrides = overrides,
+    keepFor: number | null = null,
+  ): Promise<boolean> {
+    if (!file) return false;
     setError('');
     setBusy(dryRun ? 'analyse' : 'import');
     try {
       const headers = await authHeader();
-      if (!headers) return;
+      if (!headers) return false;
 
       const form = new FormData();
       form.set('file', file);
@@ -159,22 +208,38 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
       form.set('consent', String(consent));
       form.set('notify', String(notify));
       form.set('allowNoDepartment', String(allowNoDepartment));
+      form.set('overrides', JSON.stringify(ov));
+      if (!dryRun) form.set('selected', JSON.stringify([...selectedValid]));
 
       const res = await fetch(ENDPOINT, { method: 'POST', headers, body: form, cache: 'no-store' });
       const data = (await res.json().catch(() => null)) as ImportResponse | null;
       if (!res.ok || !data?.ok) {
         setError(data?.message ?? 'Le serveur a refusé le fichier. Réessayez.');
-        return;
+        return false;
       }
       if (dryRun) {
         setReport(data);
-        setFilter('all');
-        setQuery('');
+        if (keepFor === null) {
+          setSelected(allImportable(data.rows));
+          setFilter('all');
+          setQuery('');
+        } else {
+          setSelected((prev) => {
+            const next = new Set<number>();
+            for (const row of data.rows) {
+              if (isImportable(row) && (prev.has(row.line) || row.line === keepFor)) next.add(row.line);
+            }
+            return next;
+          });
+          setEditing(null);
+        }
       } else {
         setResult(data);
       }
+      return true;
     } catch {
       setError('Erreur réseau. Vérifiez votre connexion puis réessayez.');
+      return false;
     } finally {
       setBusy(null);
     }
@@ -183,6 +248,47 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
   function close() {
     onClose();
     if (result && (result.created ?? 0) > 0) (onImported ?? (() => window.location.reload()))();
+  }
+
+  /* ------------------------------ Corrections ------------------------------ */
+
+  async function applyEdit(line: number, changes: Record<string, string>) {
+    const previous = overrides;
+    const next: Overrides = { ...overrides, [line]: { ...(overrides[line] ?? {}), ...changes } };
+    setOverrides(next);
+    const ok = await send(true, next, line);
+    if (!ok) setOverrides(previous);
+  }
+
+  async function resetEdit(line: number) {
+    const previous = overrides;
+    const next: Overrides = { ...overrides };
+    delete next[line];
+    setOverrides(next);
+    const ok = await send(true, next, line);
+    if (!ok) setOverrides(previous);
+  }
+
+  /* ------------------------------ Sélection ------------------------------ */
+
+  function toggleLine(line: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(line)) next.delete(line);
+      else next.add(line);
+      return next;
+    });
+  }
+
+  function setLines(lines: number[], checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const line of lines) {
+        if (checked) next.add(line);
+        else next.delete(line);
+      }
+      return next;
+    });
   }
 
   /* ------------------------------ Rapport ------------------------------ */
@@ -205,7 +311,32 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
     });
   }, [report, filter, query]);
 
-  const canImport = Boolean(report && report.valid > 0 && consent && busy === null);
+  /** Lignes cochées ET valides : ce qui sera réellement importé. */
+  const selectedValid = useMemo(
+    () => (report?.rows ?? []).filter((row) => isImportable(row) && selected.has(row.line)).map((r) => r.line),
+    [report, selected],
+  );
+  const importableCount = useMemo(() => (report?.rows ?? []).filter(isImportable).length, [report]);
+
+  const visibleImportable = useMemo(() => visibleRows.filter(isImportable).map((r) => r.line), [visibleRows]);
+  const visibleSelectedCount = visibleImportable.filter((line) => selected.has(line)).length;
+  const allVisibleSelected = visibleImportable.length > 0 && visibleSelectedCount === visibleImportable.length;
+
+  // Case « tout » de l'en-tête : état indéterminé quand la sélection est partielle.
+  useEffect(() => {
+    if (headerCheckRef.current) {
+      headerCheckRef.current.indeterminate = visibleSelectedCount > 0 && !allVisibleSelected;
+    }
+  }, [visibleSelectedCount, allVisibleSelected]);
+
+  const fieldLabel = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const f of report?.fields ?? []) map.set(f.key, f.label);
+    return map;
+  }, [report]);
+
+  const canImport = Boolean(report && selectedValid.length > 0 && consent && busy === null);
+  const working = busy === 'analyse' || busy === 'import';
 
   /* ------------------------------ Rendu ------------------------------ */
 
@@ -229,7 +360,11 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
         </button>
       ) : (
         <button type="button" className="btn btn-primary" onClick={() => void send(false)} disabled={!canImport}>
-          {busy === 'import' ? 'Import en cours…' : `Importer ${plural(report.valid, 'candidature', 'candidatures')}`}
+          {busy === 'import'
+            ? 'Import en cours…'
+            : selectedValid.length > 0
+              ? `Importer ${plural(selectedValid.length, 'candidature sélectionnée', 'candidatures sélectionnées')}`
+              : 'Aucune candidature sélectionnée'}
         </button>
       )}
     </>
@@ -240,7 +375,7 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
       title="Importer des candidatures"
       subtitle="Fichier Excel (.xlsx) : modèle d’import ou registre des candidats"
       onClose={result ? close : onClose}
-      busy={busy === 'analyse' || busy === 'import'}
+      busy={working}
       className={styles.xl}
       footer={footer}
     >
@@ -264,6 +399,8 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
                 : 'Aucune candidature importée'}
             </h3>
             <p>
+              {(result.notSelected ?? 0) > 0 &&
+                `${plural(result.notSelected ?? 0, 'ligne laissée de côté', 'lignes laissées de côté')} · `}
               {result.duplicates > 0 && `${plural(result.duplicates, 'doublon ignoré', 'doublons ignorés')} · `}
               {result.errors > 0 && `${plural(result.errors, 'ligne refusée', 'lignes refusées')} · `}
               {notify ? `${plural(result.emailsSent ?? 0, 'e-mail envoyé', 'e-mails envoyés')}` : 'Aucun e-mail envoyé'}
@@ -359,6 +496,7 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
                 <div className={styles.summary}>
                   <Stat label="Lignes lues" value={report.total} />
                   <Stat label="Prêtes à importer" value={report.valid} tone="ok" />
+                  <Stat label="Sélectionnées" value={selectedValid.length} tone="ok" />
                   <Stat label="À vérifier" value={report.withWarnings ?? 0} tone="warn" />
                   <Stat label="Doublons" value={report.duplicates} tone="muted" />
                   <Stat label="Refusées" value={report.errors} tone="danger" />
@@ -374,6 +512,31 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
                     </span>
                   </div>
                 )}
+
+                <div className={ed.selectionBar}>
+                  <span>
+                    <strong>{selectedValid.length}</strong> sur {importableCount} ligne
+                    {importableCount > 1 ? 's' : ''} importable{importableCount > 1 ? 's' : ''} cochée
+                    {selectedValid.length > 1 ? 's' : ''}
+                  </span>
+                  <button
+                    type="button"
+                    className={ed.linkBtn}
+                    onClick={() => setSelected(allImportable(report.rows))}
+                    disabled={busy !== null || selectedValid.length === importableCount}
+                  >
+                    Tout sélectionner
+                  </button>
+                  <button
+                    type="button"
+                    className={ed.linkBtn}
+                    onClick={() => setSelected(new Set())}
+                    disabled={busy !== null || selectedValid.length === 0}
+                  >
+                    Tout désélectionner
+                  </button>
+                  <span>Cochez les lignes à importer ; « Modifier » corrige les données d’une ligne.</span>
+                </div>
 
                 <div className={styles.reportBar}>
                   <div className={styles.tabs} role="tablist" aria-label="Filtrer les lignes">
@@ -410,38 +573,107 @@ export default function ImportCandidaturesDialog({ onClose, onImported }: Props)
                     <table className={styles.table}>
                       <thead>
                         <tr>
+                          <th scope="col" className={ed.cellCheck}>
+                            <input
+                              ref={headerCheckRef}
+                              type="checkbox"
+                              checked={allVisibleSelected}
+                              disabled={visibleImportable.length === 0 || busy !== null}
+                              onChange={(e) => setLines(visibleImportable, e.target.checked)}
+                              aria-label="Cocher ou décocher toutes les lignes importables affichées"
+                            />
+                          </th>
                           <th scope="col">Ligne</th>
                           <th scope="col">Candidat</th>
                           <th scope="col">Statut</th>
                           <th scope="col">Détails</th>
+                          <th scope="col">
+                            <span className={styles.srOnly}>Actions</span>
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {visibleRows.map((row) => {
                           const kind = rowKind(row);
                           const notes = kind === 'warning' ? (row.warnings ?? []) : row.errors;
+                          const importable = isImportable(row);
+                          const isChecked = importable && selected.has(row.line);
+                          const isEditing = editing === row.line;
+                          const corrected = row.corrected ?? [];
                           return (
-                            <tr key={`${row.line}-${row.email}`}>
-                              <td className={styles.cellLine}>{row.line}</td>
-                              <td>
-                                <span className={styles.name}>{row.nomPrenom || '-'}</span>
-                                <span className={styles.mail}>{row.email || '-'}</span>
-                              </td>
-                              <td>
-                                <span className={`${styles.badge} ${styles[`badge_${kind}`]}`}>{KIND_LABEL[kind]}</span>
-                              </td>
-                              <td>
-                                {notes.length === 0 ? (
-                                  <span className={styles.okText}>Prête à être importée</span>
-                                ) : (
-                                  <ul className={`${styles.notes} ${kind === 'warning' ? styles.notesWarn : ''}`}>
-                                    {notes.map((note) => (
-                                      <li key={note}>{note}</li>
-                                    ))}
-                                  </ul>
-                                )}
-                              </td>
-                            </tr>
+                            <Fragment key={`${row.line}-${row.email}`}>
+                              <tr className={importable && !isChecked ? ed.unselected : undefined}>
+                                <td className={ed.cellCheck}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    disabled={!importable || busy !== null}
+                                    onChange={() => toggleLine(row.line)}
+                                    aria-label={
+                                      importable
+                                        ? `Importer la ligne ${row.line}`
+                                        : `Ligne ${row.line} non importable : corrigez-la d’abord`
+                                    }
+                                  />
+                                </td>
+                                <td className={styles.cellLine}>{row.line}</td>
+                                <td>
+                                  <span className={styles.name}>{row.nomPrenom || '-'}</span>
+                                  <span className={styles.mail}>{row.email || '-'}</span>
+                                </td>
+                                <td>
+                                  <span className={`${styles.badge} ${styles[`badge_${kind}`]}`}>{KIND_LABEL[kind]}</span>
+                                  {corrected.length > 0 && (
+                                    <span className={ed.correctedNote}>
+                                      Corrigée : {corrected.map((key) => fieldLabel.get(key) ?? key).join(', ')}
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  {notes.length === 0 ? (
+                                    <span className={styles.okText}>Prête à être importée</span>
+                                  ) : (
+                                    <ul className={`${styles.notes} ${kind === 'warning' ? styles.notesWarn : ''}`}>
+                                      {notes.map((note) => (
+                                        <li key={note}>{note}</li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </td>
+                                <td className={ed.cellActions}>
+                                  {row.fields && (
+                                    <button
+                                      type="button"
+                                      className={ed.editBtn}
+                                      aria-expanded={isEditing}
+                                      onClick={() => setEditing(isEditing ? null : row.line)}
+                                      disabled={busy !== null}
+                                    >
+                                      <Icons.Edit size={14} />
+                                      {isEditing ? 'Fermer' : 'Modifier'}
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {isEditing && row.fields && report.fields && (
+                                <tr className={ed.editRow}>
+                                  <td colSpan={6}>
+                                    <ImportRowEditor
+                                      key={`${row.line}-${row.email}-${corrected.join(',')}`}
+                                      fields={report.fields}
+                                      values={row.fields}
+                                      notes={importable ? [] : row.errors}
+                                      busy={busy === 'analyse'}
+                                      hasCorrections={Boolean(overrides[row.line])}
+                                      onApply={(changes) => void applyEdit(row.line, changes)}
+                                      onReset={() => void resetEdit(row.line)}
+                                      onCancel={() => setEditing(null)}
+                                    />
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
                           );
                         })}
                       </tbody>
