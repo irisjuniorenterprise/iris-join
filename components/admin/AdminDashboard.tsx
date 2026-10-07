@@ -50,6 +50,9 @@ type MutationResult = {
   moved?: boolean;
   created?: number;
   skipped?: number;
+  deleted?: number;
+  booked?: number;
+  missing?: number;
 };
 
 export default function AdminDashboard() {
@@ -394,6 +397,48 @@ export default function AdminDashboard() {
             Le créneau du <strong>{formatDayLong(slot.date)} à {slot.time}</strong> (
             {DEPARTMENT_LABELS[slot.department]}) ne sera plus proposé aux candidats.
           </p>
+        </ConfirmDialog>
+      );
+    }
+  }
+
+  if (dialog?.type === 'delete-slots') {
+    const selected = allSlots.filter((s) => dialog.slotIds.includes(s.id));
+    if (selected.length > 0) {
+      dialogNode = (
+        <ConfirmDialog
+          title={`Supprimer ${selected.length} créneau${selected.length > 1 ? 'x' : ''} ?`}
+          confirmLabel={`Supprimer (${selected.length})`}
+          danger
+          onClose={closeDialog}
+          onConfirm={() =>
+            mutate(
+              '/api/admin/slots',
+              'DELETE',
+              { ids: selected.map((s) => s.id) },
+              (r) => {
+                const deleted = r.deleted ?? 0;
+                const ignored = (r.booked ?? 0) + (r.missing ?? 0);
+                return (
+                  `${deleted} créneau${deleted > 1 ? 'x' : ''} supprimé${deleted > 1 ? 's' : ''}` +
+                  (ignored ? ` (${ignored} ignoré${ignored > 1 ? 's' : ''} : réservé ou déjà supprimé)` : '') +
+                  '.'
+                );
+              },
+            )
+          }
+        >
+          <p>
+            Ces <strong>{selected.length}</strong> créneaux ne seront plus proposés aux candidats :
+          </p>
+          <ul>
+            {selected.slice(0, 8).map((s) => (
+              <li key={s.id}>
+                {formatDayLong(s.date)} à {s.time} ({DEPARTMENT_LABELS[s.department]})
+              </li>
+            ))}
+            {selected.length > 8 && <li>… et {selected.length - 8} autre{selected.length - 8 > 1 ? 's' : ''}</li>}
+          </ul>
         </ConfirmDialog>
       );
     }

@@ -59,6 +59,7 @@ export type DialogRequest =
   | { type: 'release'; slotId: string }
   | { type: 'edit-slot'; slotId: string }
   | { type: 'delete-slot'; slotId: string }
+  | { type: 'delete-slots'; slotIds: string[] }
   | {
       type: 'create-slots';
       initial?: { date?: string; time?: string; department?: DepartmentKey };

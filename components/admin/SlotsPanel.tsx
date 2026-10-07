@@ -5,7 +5,12 @@
 // colonne par département — les créneaux parallèles apparaissent côte à
 // côte. Chaque cellule permet de modifier ou supprimer le créneau, ou d'en
 // ajouter un dans une case vide.
-import { useMemo, useState, type CSSProperties } from 'react';
+//
+// Sélection multiple (suppression rapide) : Ctrl+2 (Cmd+2 sur Mac) active ou
+// désactive le mode sélection ; un clic sur un créneau libre l'ajoute ou le
+// retire de la sélection. Ctrl/Cmd+clic fonctionne aussi hors du mode. Les
+// créneaux réservés ne sont pas sélectionnables (il faut d'abord les libérer).
+import { useEffect, useMemo, useState, type CSSProperties, type MouseEvent } from 'react';
 import { Icons } from '@/components/icons/Icons';
 import {
   DEPARTMENT_KEYS,
@@ -23,6 +28,7 @@ import {
   type DialogRequest,
 } from './shared';
 import styles from './admin.module.css';
+import selStyles from './SlotsPanel.module.css';
 
 type Props = {
   slots: AdminSlot[];
@@ -33,6 +39,51 @@ type Props = {
 export default function SlotsPanel({ slots, candidatureByEmail, onRequest }: Props) {
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const [department, setDepartment] = useState<'all' | DepartmentKey>('all');
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Ne garde que les créneaux qui existent encore et sont toujours libres
+  // (après une suppression, une réservation ou une actualisation).
+  const selectedIds = useMemo(() => {
+    const free = new Set(slots.filter((s) => !s.booked).map((s) => s.id));
+    return Array.from(selected).filter((id) => free.has(id));
+  }, [selected, slots]);
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  function leaveSelection() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
+  function toggleSlot(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  // Raccourci Ctrl+2 (Cmd+2 sur Mac). On teste `code` (position physique de la
+  // touche) pour que ça marche aussi sur un clavier AZERTY. Échap quitte le mode.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // Une fenêtre (confirmation, formulaire…) est ouverte : on ne touche à rien.
+      if (document.querySelector('[role="dialog"]')) return;
+
+      if (e.key === 'Escape' && selectMode) {
+        leaveSelection();
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.repeat) return;
+      if (e.code !== 'Digit2' && e.code !== 'Numpad2') return;
+      e.preventDefault();
+      if (selectMode) leaveSelection();
+      else setSelectMode(true);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [selectMode]);
 
   const days = useMemo(() => {
     const map = new Map<string, { date: string; free: number; total: number }>();
@@ -65,6 +116,31 @@ export default function SlotsPanel({ slots, candidatureByEmail, onRequest }: Pro
     return { key, booked: list.filter((s) => s.booked).length, total: list.length };
   });
 
+  const dayFreeIds = slots
+    .filter((s) => s.date === currentDay && !s.booked && (department === 'all' || s.department === department))
+    .map((s) => s.id);
+  const allDayFreeSelected = dayFreeIds.length > 0 && dayFreeIds.every((id) => selectedSet.has(id));
+
+  function toggleAllOfDay() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allDayFreeSelected) dayFreeIds.forEach((id) => next.delete(id));
+      else dayFreeIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  function onCellClick(e: MouseEvent, slot: AdminSlot) {
+    // Ne pas déclencher la sélection quand on clique sur un bouton d'action.
+    if ((e.target as HTMLElement).closest('button')) return;
+    if (slot.booked) return;
+    if (selectMode || e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      if (!selectMode) setSelectMode(true);
+      toggleSlot(slot.id);
+    }
+  }
+
   return (
     <div className={styles.panel}>
       <div className={styles.toolbar}>
@@ -82,6 +158,43 @@ export default function SlotsPanel({ slots, candidatureByEmail, onRequest }: Pro
           ))}
         </select>
         <span className={styles.toolbarSpacer} />
+        {selectMode ? (
+          <>
+            <span className={selStyles.selCount} role="status" aria-live="polite">
+              {selectedIds.length} sélectionné{selectedIds.length > 1 ? 's' : ''}
+            </span>
+            <button
+              type="button"
+              className={`btn btn-outline ${styles.compact}`}
+              onClick={toggleAllOfDay}
+              disabled={dayFreeIds.length === 0}
+            >
+              {allDayFreeSelected ? 'Désélectionner le jour' : 'Tout sélectionner (jour)'}
+            </button>
+            <button
+              type="button"
+              className={`btn btn-primary ${styles.compact} ${selStyles.deleteBtn}`}
+              onClick={() => onRequest({ type: 'delete-slots', slotIds: selectedIds })}
+              disabled={selectedIds.length === 0}
+            >
+              <Icons.X size={16} />
+              Supprimer ({selectedIds.length})
+            </button>
+            <button type="button" className={`btn btn-outline ${styles.compact}`} onClick={leaveSelection}>
+              Annuler
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className={`btn btn-outline ${styles.compact}`}
+            onClick={() => setSelectMode(true)}
+            title="Raccourci clavier : Ctrl+2 (ou Ctrl+clic sur un créneau)"
+          >
+            <Icons.Check size={16} />
+            Sélectionner (Ctrl+2)
+          </button>
+        )}
         <button
           type="button"
           className={`btn btn-primary ${styles.compact}`}
@@ -181,9 +294,24 @@ export default function SlotsPanel({ slots, candidatureByEmail, onRequest }: Pro
                       return (
                         <div
                           key={key}
-                          className={`${styles.cell} ${slot.booked ? styles.cellBooked : styles.cellFree}`}
+                          className={[
+                            styles.cell,
+                            slot.booked ? styles.cellBooked : styles.cellFree,
+                            selectMode && !slot.booked ? selStyles.selectable : '',
+                            selectMode && slot.booked ? selStyles.locked : '',
+                            selectedSet.has(slot.id) ? selStyles.selected : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
                           style={deptStyle(slot.department)}
+                          onClick={(e) => onCellClick(e, slot)}
+                          aria-selected={selectMode && !slot.booked ? selectedSet.has(slot.id) : undefined}
                         >
+                          {selectMode && !slot.booked && (
+                            <span className={selStyles.check} aria-hidden="true">
+                              {selectedSet.has(slot.id) && <Icons.Check size={12} />}
+                            </span>
+                          )}
                           <div className={styles.cellMain}>
                             <span className={styles.cellDept}>{DEPARTMENT_LABELS[slot.department]}</span>
                             <span className={styles.cellModeTag}>{INTERVIEW_MODE_LABELS[slot.mode]}</span>

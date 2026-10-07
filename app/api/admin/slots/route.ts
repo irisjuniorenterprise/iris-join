@@ -5,7 +5,8 @@
 //             mode (présentiel / en ligne), sans doublon ;
 //  - PATCH  : modifie date / heure / département / mode d'un créneau
 //             (aucun e-mail : le rappel 24 h avant suit le nouvel horaire) ;
-//  - DELETE : supprime un créneau libre.
+//  - DELETE : supprime un créneau libre ({ id }) ou plusieurs d'un coup ({ ids }) ;
+//             les créneaux réservés sont ignorés et comptés à part.
 // Réservé aux e-mails listés dans ADMIN_EMAILS.
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -42,6 +43,7 @@ const patchSchema = z
   .refine((v) => v.date || v.time || v.department || v.mode, 'Aucune modification.');
 
 const deleteSchema = z.object({ id: idSchema });
+const deleteManySchema = z.object({ ids: z.array(idSchema).min(1).max(200) });
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status, headers: NO_STORE });
@@ -108,7 +110,32 @@ export async function DELETE(request: Request) {
   const check = await requireAdmin(request);
   if (!check.ok) return denyResponse(check);
 
-  const parsed = deleteSchema.safeParse(await request.json().catch(() => null));
+  const body = await request.json().catch(() => null);
+
+  // Suppression groupée (sélection multiple Ctrl+2 du tableau de bord).
+  const many = deleteManySchema.safeParse(body);
+  if (many.success) {
+    const ids = Array.from(new Set(many.data.ids));
+    let deleted = 0;
+    let booked = 0;
+    let missing = 0;
+
+    try {
+      for (const id of ids) {
+        const outcome = await deleteSlot(id);
+        if (outcome.ok) deleted += 1;
+        else if (outcome.reason === 'booked') booked += 1;
+        else missing += 1;
+      }
+    } catch (err) {
+      console.error('[api/admin/slots] suppression groupée', err);
+      return fail('Erreur serveur.', 500);
+    }
+
+    return NextResponse.json({ ok: true, deleted, booked, missing }, { headers: NO_STORE });
+  }
+
+  const parsed = deleteSchema.safeParse(body);
   if (!parsed.success) return fail('Données invalides.', 400);
 
   try {
