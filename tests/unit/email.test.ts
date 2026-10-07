@@ -200,7 +200,7 @@ describe('style des e-mails (lettre sur fond blanc, signée RH)', () => {
     };
     const cids = mail.attachments.map((a) => a.cid).sort();
     expect(cids).toEqual(
-      ['icon-facebook', 'icon-globe', 'icon-instagram', 'icon-linkedin', 'icon-phone', 'icon-pin'].map((n) => `${n}@iris`),
+      ['icon-facebook', 'icon-globe', 'icon-instagram', 'icon-linkedin', 'icon-location', 'icon-phone'].map((n) => `${n}@iris`),
     );
     for (const a of mail.attachments) {
       expect(a.contentType).toBe('image/png');
@@ -228,7 +228,7 @@ describe('style des e-mails (lettre sur fond blanc, signée RH)', () => {
       expect(mail.html).toContain('Responsable Ressources Humaines et Formations');
       expect(mail.html).toContain('IRIS Junior Création');
       expect(mail.html).toContain('www.iris-junior-entreprise.com');
-      expect(mail.html).toContain('src="cid:icon-pin@iris"');
+      expect(mail.html).toContain('src="cid:icon-location@iris"');
       expect(mail.html).toContain('src="cid:icon-instagram@iris"');
     }
   });

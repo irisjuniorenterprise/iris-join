@@ -174,7 +174,7 @@ function signatureHtml(color: string): string {
           <p style="${text} font-size: 17px; font-weight: 700; margin-bottom: 10px;">${escapeHtml(s.org)}</p>
           <p style="${text} margin-bottom: 22px;">${escapeHtml(s.office)}</p>
           <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
-            ${row('icon-pin', 'Adresse', escapeHtml(s.address))}
+            ${row('icon-location', 'Adresse', escapeHtml(s.address))}
             ${row('icon-phone', 'Téléphone', `<a href="tel:${tel}" style="${link}">${escapeHtml(s.phoneLabel)}</a>`)}
             ${row('icon-globe', 'Site web', `<a href="${escapeHtml(s.website)}" style="${link} font-size: 14px;">${escapeHtml(siteLabel)}</a>`)}
           </table>
@@ -253,7 +253,7 @@ export async function sendInterviewReminder(
     subject: '[Rappel - entretien]',
     html: emailShell(
       `
-      ${para(c, `Bonjour ${name},`)}
+      ${para(c, `${name},`)}
       ${para(
         c,
         `Nous vous rappelons que votre entretien dans le cadre de votre candidature à IRIS Junior Entreprise
