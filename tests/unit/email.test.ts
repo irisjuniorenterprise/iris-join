@@ -134,9 +134,9 @@ describe('sendInterviewReminder', () => {
 
 describe('sendResultEmail', () => {
   it.each([
-    ['accepted', /Félicitations/, /Bienvenue chez IRIS/],
-    ['rejected', /Résultat de votre candidature/, /pas en mesure de retenir/],
-    ['absent', /Votre entretien/, /pas pu vous présenter/],
+    ['accepted', /^\[Résultat - candidature\]$/, /Bienvenue chez IRIS/],
+    ['rejected', /^\[Résultat - candidature\]$/, /pas en mesure de retenir/],
+    ['absent', /^\[Entretien - absence\]$/, /pas pu vous présenter/],
   ] as const)('gabarit « %s »', async (status, subject, body) => {
     const email = await loadEmail(SMTP);
     const ok = await email.sendResultEmail('a@b.tn', 'Ali', 'IT', status);
@@ -158,7 +158,7 @@ describe('sendResultEmail', () => {
   it('n’ajoute aucun encadré quand le message est vide ou blanc', async () => {
     const email = await loadEmail(SMTP);
     await email.sendResultEmail('a@b.tn', 'Ali', 'IT', 'accepted', '   ');
-    expect(sentMail().html).not.toContain('border-left: 4px solid #5ab8de');
+    expect(sentMail().html).not.toContain('NB :');
   });
 
   it('échappe le nom et le département', async () => {
@@ -175,12 +175,53 @@ describe('sendResultEmail', () => {
     expect(sentMail().html).toContain('#1a3969');
   });
 
+  it('affiche le message personnalisé précédé de « NB : »', async () => {
+    const email = await loadEmail(SMTP);
+    await email.sendResultEmail('a@b.tn', 'Ali', 'IT', 'accepted', 'Rendez-vous lundi');
+    expect(sentMail().html).toContain('NB :');
+  });
+
   it('renvoie false quand le SMTP est absent ou en erreur (l’admin doit le savoir)', async () => {
     expect(await (await loadEmail()).sendResultEmail('a@b.tn', 'Ali', 'IT', 'accepted')).toBe(false);
 
     mocks.sendMail.mockRejectedValue(new Error('boom'));
     const email = await loadEmail(SMTP);
     expect(await email.sendResultEmail('a@b.tn', 'Ali', 'IT', 'accepted')).toBe(false);
+  });
+});
+
+describe('style des e-mails (lettre sur fond blanc, signée RH)', () => {
+  it('chaque e-mail : fond blanc, sans en-tête ni carte, signature de la RH', async () => {
+    const email = await loadEmail({ ...SMTP, RH_NOTIFICATION_EMAIL: 'rh@iris.tn' });
+    await email.sendCandidatureConfirmation('a@b.tn', 'Ali', 'IT');
+    await email.sendInterviewReminder('a@b.tn', 'Ali', 'Lundi', '09:00');
+    await email.sendResultEmail('a@b.tn', 'Ali', 'IT', 'accepted');
+    await email.notifyRhNewCandidature('a@b.tn', 'Ali', 'IT');
+
+    expect(mocks.sendMail).toHaveBeenCalledTimes(4);
+    for (const [mail] of mocks.sendMail.mock.calls as [{ subject: string; html: string }][]) {
+      expect(mail.subject).toMatch(/^\[[^\]]+\]/);
+      expect(mail.html).toContain('background: #ffffff');
+      expect(mail.html).not.toContain('<h1');
+      expect(mail.html).not.toContain('border-radius: 16px');
+      expect(mail.html).toContain('Hiba SALEM');
+      expect(mail.html).toContain('Responsable Ressources Humaines et Formations');
+      expect(mail.html).toContain('IRIS Junior Création');
+      expect(mail.html).toContain('irisje.tn');
+    }
+  });
+
+  it('affiche le logo seulement si EMAIL_LOGO_URL est défini', async () => {
+    let email = await loadEmail(SMTP);
+    await email.sendInterviewReminder('a@b.tn', 'Ali', 'Lundi', '09:00');
+    expect(sentMail().html).not.toContain('<img');
+
+    mocks.sendMail.mockClear();
+    process.env.EMAIL_LOGO_URL = 'https://x.tn/logo.png';
+    email = await loadEmail(SMTP);
+    await email.sendInterviewReminder('a@b.tn', 'Ali', 'Lundi', '09:00');
+    delete process.env.EMAIL_LOGO_URL;
+    expect(sentMail().html).toContain('<img src="https://x.tn/logo.png"');
   });
 });
 

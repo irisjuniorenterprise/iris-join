@@ -13,12 +13,14 @@
 // E-mails d'entretien : UNIQUEMENT le rappel 24 h avant (sendInterviewReminder).
 
 import nodemailer, { type Transporter } from 'nodemailer';
-import { SITE_NAME, SITE_URL } from './config';
+import { LINKEDIN_URL, SITE_URL } from './config';
 import type { ResultStatus } from './deliberation';
 
 const RH_EMAIL = process.env.RH_NOTIFICATION_EMAIL;
 
-// Charte email : police Verdana, texte en #073763 (bleu nuit IRIS).
+// Charte email : e-mails « lettre » sur fond blanc, sans en-tête ni carte,
+// signés par la Responsable RH (voir emailShell / signatureHtml plus bas).
+// Police Verdana, texte en #073763 (bleu nuit IRIS).
 const EMAIL_FONT = "Verdana, Geneva, sans-serif";
 const EMAIL_TEXT_COLOR = "#073763";
 
@@ -96,46 +98,134 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/** Habillage HTML commun à tous les emails — police Verdana, texte #073763. */
-function emailShell(title: string, bodyHtml: string, textColor: string = EMAIL_TEXT_COLOR): string {
+/* ------------------------------------------------------------------ */
+/* Signature (pied de page) — toujours celle de la RH                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Tous les e-mails partent au nom de la RH (l'administrateur qui déclenche
+ * l'envoi agit pour la RH). Valeurs modifiables par variables d'environnement
+ * (voir .env.example). Une variable vide ou absente = valeur par défaut ci-dessous.
+ *
+ * Images : logo + icônes sont servis par le site (public/logo-iris.png et
+ * public/email/icon-*.png). Les e-mails ne peuvent pas embarquer d'image en
+ * base64 (Gmail la bloque) : il faut des URL absolues en https.
+ */
+const SIGNATURE = {
+  name: process.env.EMAIL_SIGNATURE_NAME || 'Hiba SALEM',
+  role: process.env.EMAIL_SIGNATURE_ROLE || 'Responsable Ressources Humaines et Formations',
+  org: process.env.EMAIL_SIGNATURE_ORG || 'IRIS Junior Création',
+  office: process.env.EMAIL_SIGNATURE_OFFICE || 'Bureau exécutif 2025 – 2026',
+  address: process.env.EMAIL_SIGNATURE_ADDRESS || 'Route Soukra Km 3.5 – 3038 Sfax',
+  phoneLabel: process.env.EMAIL_SIGNATURE_PHONE || '(+216 ) 28 250 549',
+  website: process.env.EMAIL_SIGNATURE_WEBSITE || 'https://www.iris-junior-entreprise.com',
+  logoUrl: process.env.EMAIL_LOGO_URL || `${SITE_URL}/logo-iris.png`,
+  // Réseaux sociaux : l'icône est toujours affichée ; elle n'est cliquable
+  // que si l'URL est renseignée.
+  facebookUrl: process.env.EMAIL_FACEBOOK_URL || '',
+  linkedinUrl: process.env.EMAIL_LINKEDIN_URL || LINKEDIN_URL,
+  instagramUrl: process.env.EMAIL_INSTAGRAM_URL || '',
+};
+
+/** Icône d'e-mail hébergée sur le site (public/email/<name>.png). */
+const iconUrl = (name: string) => `${SITE_URL}/email/${name}.png`;
+
+function signatureHtml(color: string): string {
+  const s = SIGNATURE;
+  const tel = s.phoneLabel.replace(/[^\d+]/g, '');
+  const siteLabel = s.website.replace(/^https?:\/\//, '');
+  const SIG_FONT = 'Arial, Helvetica, sans-serif';
+  const link = 'color: #1a5fd0; text-decoration: underline;';
+  const text = `font-family: ${EMAIL_FONT}; color: ${color}; font-size: 15px; line-height: 1.4; margin: 0;`;
+
+  const social = (name: string, label: string, href: string) => {
+    const img = `<img src="${escapeHtml(iconUrl(name))}" alt="${label}" width="36" height="36" style="display: block; border: 0; width: 36px; height: 36px;">`;
+    return `<td style="padding: 0 5px;">${href ? `<a href="${escapeHtml(href)}" style="text-decoration: none;">${img}</a>` : img}</td>`;
+  };
+
+  // Ligne « icône + texte » (adresse, téléphone, site).
+  const row = (icon: string, label: string, inner: string) => `
+          <tr>
+            <td style="padding: 6px 10px 6px 0; vertical-align: middle;">
+              <img src="${escapeHtml(iconUrl(icon))}" alt="${label}" width="20" height="20" style="display: block; border: 0; width: 20px; height: 20px;">
+            </td>
+            <td style="padding: 6px 0; vertical-align: middle;"><span style="${text}">${inner}</span></td>
+          </tr>`;
+
   return `
-  <div style="font-family: ${EMAIL_FONT}; background: #f8fafc; padding: 32px 16px;">
-    <div style="max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb;">
-      <div style="background: #1a3969; padding: 24px 32px;">
-        <span style="font-family: ${EMAIL_FONT}; color: #ffffff; font-weight: 700; font-size: 18px; letter-spacing: -0.01em;">${SITE_NAME}</span>
-      </div>
-      <div style="padding: 32px; font-family: ${EMAIL_FONT};">
-        <h1 style="font-family: ${EMAIL_FONT}; font-size: 20px; color: ${textColor}; margin: 0 0 16px;">${title}</h1>
-        ${bodyHtml}
-      </div>
-      <div style="padding: 20px 32px; background: #f8fafc; border-top: 1px solid #e5e7eb;">
-        <p style="font-family: ${EMAIL_FONT}; font-size: 12px; color: ${textColor}; margin: 0;">
-          IRIS Junior Entreprise — ENIS Sfax · <a href="${SITE_URL}" style="color: #5ab8de;">${SITE_URL.replace('https://', '')}</a>
-        </p>
-      </div>
-    </div>
+    <p style="font-family: ${SIG_FONT}; color: ${color}; font-size: 18px; font-weight: 700; margin: 32px 0 4px;">${escapeHtml(s.name)}</p>
+    <p style="font-family: ${SIG_FONT}; color: ${color}; font-size: 16px; margin: 0 0 24px;">${escapeHtml(s.role)}</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+      <tr>
+        <td style="padding: 8px 56px 8px 24px; vertical-align: middle; text-align: center;" align="center">
+          <img src="${escapeHtml(s.logoUrl)}" alt="${escapeHtml(s.org)}" width="130" style="display: block; border: 0; width: 130px; height: auto; margin: 0 auto 14px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="border-collapse: collapse; margin: 0 auto;">
+            <tr>
+              ${social('icon-facebook', 'Facebook', s.facebookUrl)}
+              ${social('icon-linkedin', 'LinkedIn', s.linkedinUrl)}
+              ${social('icon-instagram', 'Instagram', s.instagramUrl)}
+            </tr>
+          </table>
+        </td>
+        <td style="padding: 8px 0 8px 36px; border-left: 2px solid ${color}; vertical-align: middle;">
+          <p style="${text} font-size: 17px; font-weight: 700; margin-bottom: 10px;">${escapeHtml(s.org)}</p>
+          <p style="${text} margin-bottom: 22px;">${escapeHtml(s.office)}</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
+            ${row('icon-pin', 'Adresse', escapeHtml(s.address))}
+            ${row('icon-phone', 'Téléphone', `<a href="tel:${tel}" style="${link}">${escapeHtml(s.phoneLabel)}</a>`)}
+            ${row('icon-globe', 'Site web', `<a href="${escapeHtml(s.website)}" style="${link} font-size: 14px;">${escapeHtml(siteLabel)}</a>`)}
+          </table>
+        </td>
+      </tr>
+    </table>`;
+}
+
+/**
+ * Habillage commun : un e-mail « lettre » — fond blanc, aucun en-tête ni carte,
+ * texte aligné à gauche, puis la signature de la RH en pied de page.
+ */
+function emailShell(bodyHtml: string, textColor: string = EMAIL_TEXT_COLOR): string {
+  return `
+  <div style="font-family: ${EMAIL_FONT}; background: #ffffff; color: ${textColor}; font-size: 14px; line-height: 1.7; padding: 8px 0;">
+    ${bodyHtml}
+    ${signatureHtml(textColor)}
   </div>`;
 }
 
+/** Paragraphe de corps. */
+function para(color: string, html: string): string {
+  return `<p style="font-family: ${EMAIL_FONT}; color: ${color}; font-size: 14px; line-height: 1.7; margin: 0 0 16px;">${html}</p>`;
+}
+
+/** Ligne à puce « Libellé : lien » (comme « Lien de la réunion : [Lien] »). */
+function linkBullet(color: string, label: string, href: string, text: string): string {
+  return `<ul style="font-family: ${EMAIL_FONT}; color: ${color}; font-size: 14px; line-height: 1.7; margin: 0 0 16px; padding-left: 40px;">
+      <li><strong style="text-decoration: underline;">${escapeHtml(label)}</strong> : <a href="${escapeHtml(href)}" style="color: #1a5fd0;">${escapeHtml(text)}</a></li>
+    </ul>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* E-mails                                                              */
+/* ------------------------------------------------------------------ */
+
 export async function sendCandidatureConfirmation(to: string, nomPrenom: string, departement: string) {
+  const c = EMAIL_TEXT_COLOR;
   await sendEmail({
     to,
-    subject: 'Candidature bien reçue — IRIS Junior Entreprise',
+    subject: '[Candidature - confirmation]',
     html: emailShell(
-      'Candidature bien reçue ✅',
       `
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6;">Bonjour ${nomPrenom},</p>
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6;">
-        Nous avons bien reçu votre candidature pour le département <strong>${departement}</strong>.
-        Notre équipe RH va l'étudier dans les prochains jours.
-      </p>
-      <p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR}; line-height: 1.6;">
-        Prochaine étape : réservez votre créneau d'entretien dès maintenant, en quelques clics.
-      </p>
-      <a href="${SITE_URL}/entretien" style="display: inline-block; margin-top: 8px; padding: 12px 24px; background: #ff6633; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; font-size: 14px; font-family: ${EMAIL_FONT};">
-        Réserver mon entretien
-      </a>
+      ${para(c, `Bonjour ${escapeHtml(nomPrenom.trim())},`)}
+      ${para(
+        c,
+        `Nous avons bien reçu votre candidature pour le département <strong>${escapeHtml(departement)}</strong>.
+        Notre équipe RH va l'étudier dans les prochains jours.`,
+      )}
+      ${para(c, `Prochaine étape : réservez votre créneau d'entretien dès maintenant, en quelques clics.`)}
+      ${linkBullet(c, "Réservation de l'entretien", `${SITE_URL}/entretien`, 'Lien')}
+      ${para(c, `Nous comptons sur votre présence, votre ponctualité et votre implication.`)}
       `,
+      c,
     ),
   });
 }
@@ -144,8 +234,7 @@ export async function sendCandidatureConfirmation(to: string, nomPrenom: string,
  * Rappel d'entretien — le SEUL e-mail lié à l'entretien : envoyé une fois,
  * 24 h avant l'heure du créneau (voir app/api/cron/reminders/route.ts).
  * Aucun e-mail n'est envoyé à la réservation, au changement de créneau ni
- * à l'annulation. Police Verdana, texte bleu de la charte (#1a3969).
- * Renvoie true si l'e-mail est bien parti (le cron réessaiera sinon).
+ * à l'annulation. Renvoie true si l'e-mail est bien parti (le cron réessaiera sinon).
  */
 export async function sendInterviewReminder(
   to: string,
@@ -153,34 +242,38 @@ export async function sendInterviewReminder(
   dateLabel: string,
   time: string,
 ): Promise<boolean> {
-  const style = `font-family: ${EMAIL_FONT}; color: ${RESULT_TEXT_COLOR}; font-size: 14px; line-height: 1.7; margin: 0 0 16px;`;
+  const c = RESULT_TEXT_COLOR;
   const name = escapeHtml(nomPrenom.trim());
 
   return sendEmailStrict({
     to,
-    subject: 'Rappel de votre entretien — IRIS Junior Entreprise',
-    html: `
-  <div style="font-family: ${EMAIL_FONT}; color: ${RESULT_TEXT_COLOR}; padding: 8px 0;">
-    <p style="${style}">${name},</p>
-    <p style="${style}">
-      Nous vous rappelons que votre entretien dans le cadre de votre candidature à IRIS Junior Entreprise
-      est prévu le ${escapeHtml(dateLabel)} à ${escapeHtml(time)}.
-    </p>
-    <p style="${style}">
-      Nous vous remercions pour votre disponibilité et vous souhaitons une bonne préparation.
-    </p>
-  </div>`,
+    subject: '[Rappel - entretien]',
+    html: emailShell(
+      `
+      ${para(c, `Bonjour ${name},`)}
+      ${para(
+        c,
+        `Nous vous rappelons que votre entretien dans le cadre de votre candidature à IRIS Junior Entreprise
+        est prévu le <strong>${escapeHtml(dateLabel)} à ${escapeHtml(time)}</strong>.`,
+      )}
+      ${para(c, `Nous vous remercions pour votre disponibilité et vous souhaitons une bonne préparation.`)}
+      `,
+      c,
+    ),
   });
 }
 
 /**
  * E-mail de résultat de délibération (accepté / non accepté / absent).
- * Envoyé par l'administration, à la demande. Renvoie true si l'e-mail est
- * bien parti (contrairement aux autres, l'admin doit savoir s'il a échoué).
- * Police Verdana, texte #1a3969.
+ * Envoyé par l'administration (au nom de la RH), à la demande. Renvoie true
+ * si l'e-mail est bien parti (contrairement aux autres, l'admin doit savoir
+ * s'il a échoué). Police Verdana, texte #1a3969.
  *
  * `departmentChanged` : le candidat est accepté dans un autre département que
  * son 1er choix (`departement` est alors le département d'acceptation).
+ *
+ * Les objets ne révèlent pas la décision (elle s'affiche dans la boîte de
+ * réception) : seul le candidat qui ouvre le message la découvre.
  */
 export async function sendResultEmail(
   to: string,
@@ -191,62 +284,56 @@ export async function sendResultEmail(
   departmentChanged = false,
 ): Promise<boolean> {
   const c = RESULT_TEXT_COLOR;
-  const p = `font-family: ${EMAIL_FONT}; color: ${c}; line-height: 1.6;`;
   const name = escapeHtml(nomPrenom);
   const dept = escapeHtml(departement);
   const note = message?.trim()
-    ? `<div style="background: #f6fafd; border-left: 4px solid #5ab8de; border-radius: 8px; padding: 14px 18px; margin: 16px 0;">
-        <p style="font-family: ${EMAIL_FONT}; color: ${c}; line-height: 1.6; margin: 0; font-size: 14px;">${escapeHtml(message.trim()).replace(/\n/g, '<br>')}</p>
-      </div>`
+    ? para(c, `<strong>NB :</strong> ${escapeHtml(message.trim()).replace(/\n/g, '<br>')}`)
     : '';
-  const button = `<a href="${SITE_URL}/resultats" style="display: inline-block; margin-top: 8px; padding: 12px 24px; background: #ff6633; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; font-size: 14px; font-family: ${EMAIL_FONT};">Voir mon résultat</a>`;
+  const link = linkBullet(c, 'Mon résultat', `${SITE_URL}/resultats`, 'Lien');
 
-  const content: Record<ResultStatus, { subject: string; title: string; body: string }> = {
+  const content: Record<ResultStatus, { subject: string; body: string }> = {
     accepted: {
-      subject: 'Félicitations, vous êtes accepté(e) — IRIS Junior Entreprise',
-      title: 'Félicitations ! 🎉',
+      subject: '[Résultat - candidature]',
       body: `
-        <p style="${p}">Bonjour ${name},</p>
-        <p style="${p}">
-          ${
-            departmentChanged
-              ? `Au vu de votre profil et de nos échanges lors de l'entretien, nous avons le plaisir de vous annoncer que vous êtes accepté(e) au sein du département <strong>${dept}</strong>. Bienvenue chez IRIS Junior Entreprise !`
-              : `Nous avons le plaisir de vous annoncer que votre candidature pour le département <strong>${dept}</strong> a été retenue. Bienvenue chez IRIS Junior Entreprise !`
-          }
-        </p>
+        ${para(c, `Bonjour ${name},`)}
+        ${para(
+          c,
+          departmentChanged
+            ? `Au vu de votre profil et de nos échanges lors de l'entretien, nous avons le plaisir de vous annoncer que vous êtes accepté(e) au sein du département <strong>${dept}</strong>. Bienvenue chez IRIS Junior Entreprise !`
+            : `Nous avons le plaisir de vous annoncer que votre candidature pour le département <strong>${dept}</strong> a été retenue. Bienvenue chez IRIS Junior Entreprise !`,
+        )}
         ${note}
-        ${button}`,
+        ${link}`,
     },
     rejected: {
-      subject: 'Résultat de votre candidature — IRIS Junior Entreprise',
-      title: 'Résultat de votre candidature',
+      subject: '[Résultat - candidature]',
       body: `
-        <p style="${p}">Bonjour ${name},</p>
-        <p style="${p}">
-          Après délibération, nous ne sommes malheureusement pas en mesure de retenir votre candidature
-          pour le département <strong>${dept}</strong> cette fois-ci.
-        </p>
-        <p style="${p}">
-          Nous vous remercions sincèrement pour l'intérêt que vous portez à IRIS JE et pour le temps
-          consacré à ce processus. Nous vous encourageons à retenter votre chance lors d'une prochaine campagne.
-        </p>
+        ${para(c, `Bonjour ${name},`)}
+        ${para(
+          c,
+          `Après délibération, nous ne sommes malheureusement pas en mesure de retenir votre candidature
+          pour le département <strong>${dept}</strong> cette fois-ci.`,
+        )}
+        ${para(
+          c,
+          `Nous vous remercions sincèrement pour l'intérêt que vous portez à IRIS JE et pour le temps
+          consacré à ce processus. Nous vous encourageons à retenter votre chance lors d'une prochaine campagne.`,
+        )}
         ${note}
-        ${button}`,
+        ${link}`,
     },
     absent: {
-      subject: 'Votre entretien — IRIS Junior Entreprise',
-      title: 'Entretien non effectué',
+      subject: '[Entretien - absence]',
       body: `
-        <p style="${p}">Bonjour ${name},</p>
-        <p style="${p}">
-          Nous avons constaté que vous n'avez pas pu vous présenter à votre entretien pour le département
-          <strong>${dept}</strong>. Sans entretien, nous ne sommes pas en mesure d'étudier votre candidature plus avant.
-        </p>
-        <p style="${p} font-size: 14px;">
-          Si vous pensez qu'il s'agit d'une erreur, contactez l'équipe IRIS JE par e-mail au plus vite.
-        </p>
+        ${para(c, `Bonjour ${name},`)}
+        ${para(
+          c,
+          `Nous avons constaté que vous n'avez pas pu vous présenter à votre entretien pour le département
+          <strong>${dept}</strong>. Sans entretien, nous ne sommes pas en mesure d'étudier votre candidature plus avant.`,
+        )}
+        ${para(c, `Si vous pensez qu'il s'agit d'une erreur, contactez l'équipe IRIS JE par e-mail au plus vite.`)}
         ${note}
-        ${button}`,
+        ${link}`,
     },
   };
 
@@ -254,19 +341,23 @@ export async function sendResultEmail(
   return sendEmailStrict({
     to,
     subject: mail.subject,
-    html: emailShell(mail.title, mail.body, c),
+    html: emailShell(mail.body, c),
   });
 }
 
 /** Notification interne à l'équipe RH — silencieuse si RH_NOTIFICATION_EMAIL n'est pas défini. */
 export async function notifyRhNewCandidature(email: string, nomPrenom: string, departement: string) {
   if (!RH_EMAIL) return;
+  const c = EMAIL_TEXT_COLOR;
   await sendEmail({
     to: RH_EMAIL,
-    subject: `Nouvelle candidature — ${nomPrenom} (${departement})`,
+    subject: `[Candidature - nouvelle] ${nomPrenom} (${departement})`,
     html: emailShell(
-      'Nouvelle candidature reçue',
-      `<p style="font-family: ${EMAIL_FONT}; color: ${EMAIL_TEXT_COLOR};">${nomPrenom} (${email}) a postulé pour le département <strong>${departement}</strong>.</p>`,
+      `${para(
+        c,
+        `${escapeHtml(nomPrenom)} (${escapeHtml(email)}) a postulé pour le département <strong>${escapeHtml(departement)}</strong>.`,
+      )}`,
+      c,
     ),
   });
 }
