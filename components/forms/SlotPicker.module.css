@@ -226,10 +226,24 @@
     color var(--t-fast);
 }
 
-.day:hover {
+.day:hover:not([aria-selected='true']) {
   transform: translateY(-2px);
-  border-color: rgba(var(--dept-rgb), 0.55);
-  box-shadow: 0 10px 22px var(--shadow);
+  border-color: var(--dept);
+  background: rgba(var(--dept-rgb), 0.07);
+  box-shadow: 0 10px 22px rgba(var(--dept-rgb), 0.2);
+}
+
+/* Survol d'un jour libre : le bandeau du jour prend la couleur du département. */
+.day:hover:not([aria-selected='true']):not(.dayFull) .dayHead {
+  background: var(--dept);
+  color: #ffffff;
+  border-bottom-color: var(--dept);
+}
+
+/* Survol d'un jour déjà sélectionné : reste plein, texte blanc lisible. */
+.day[aria-selected='true']:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(var(--dept-rgb), 0.4);
 }
 
 .day[aria-selected='true'] {
@@ -454,11 +468,25 @@
   animation-delay: calc(var(--i, 0) * 25ms);
 }
 
-.slot:hover:not(:disabled) {
+.slot:hover:not(:disabled):not([aria-pressed='true']) {
   transform: translateY(-2px);
   border-color: var(--dept);
-  background: rgba(var(--dept-rgb), 0.04);
-  box-shadow: 0 8px 18px rgba(var(--dept-rgb), 0.16);
+  background: rgba(var(--dept-rgb), 0.1);
+  box-shadow: 0 8px 18px rgba(var(--dept-rgb), 0.22);
+}
+
+.slot:hover:not(:disabled):not([aria-pressed='true']) .slotTime {
+  color: var(--dept);
+}
+
+/* Survol d'un créneau déjà choisi : fond plein (légèrement plus foncé) et texte
+   blanc conservé — avant, le fond devenait quasi blanc sous un texte blanc. */
+.slot[aria-pressed='true']:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: color-mix(in srgb, var(--dept) 88%, #000000);
+  border-color: var(--dept);
+  color: #ffffff;
+  box-shadow: 0 14px 28px rgba(var(--dept-rgb), 0.42);
 }
 
 .slot[aria-pressed='true'] {
@@ -484,8 +512,9 @@
     background var(--t-fast);
 }
 
-.slot:hover:not(:disabled) .slotRadio {
+.slot:hover:not(:disabled):not([aria-pressed='true']) .slotRadio {
   border-color: var(--dept);
+  background: rgba(var(--dept-rgb), 0.1);
 }
 
 .slot[aria-pressed='true'] .slotRadio {
