@@ -10,6 +10,7 @@
 
 import { FieldValue, type DocumentData } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebase-admin';
+import { CACHE_TAGS, dataCache, invalidate } from './data-cache';
 import { isResultStatus, type AdminDecision, type ResultStatus } from './deliberation';
 import { normalizeDepartment, type DepartmentKey } from './interview';
 
@@ -75,6 +76,20 @@ export async function getDecision(key: string): Promise<AdminDecision | null> {
   const map = await getDecisions([key]);
   return map.get(normEmail(key)) ?? null;
 }
+
+/**
+ * Version en cache partagé, réservée à l'API CANDIDAT (/api/resultat),
+ * appelée en boucle par la page « Résultats ». 1 lecture Firestore par
+ * candidat et par minute au plus ; toute décision enregistrée, publiée ou
+ * retirée invalide le cache (voir `setDecisions` et `setPublished`). Le
+ * brouillon est mis en cache lui aussi, mais la route ne renvoie jamais
+ * un résultat non publié. L'admin continue d'utiliser `getDecision`.
+ */
+export const getDecisionCached = dataCache(
+  async (key: string): Promise<AdminDecision | null> => getDecision(key),
+  ['decision-by-email'],
+  { revalidate: 60, tags: [CACHE_TAGS.decisions] },
+);
 
 /**
  * Enregistre (ou retire, si status = null) la décision pour une liste de
@@ -160,6 +175,7 @@ export async function setDecisions(
     count += pending;
   }
 
+  if (count > 0) invalidate(CACHE_TAGS.decisions);
   return count;
 }
 
@@ -196,6 +212,7 @@ export async function setPublished(keys: string[] | null, published: boolean): P
     await batch.commit();
   }
 
+  if (targets.length > 0) invalidate(CACHE_TAGS.decisions);
   return targets.map((d) => d.email);
 }
 

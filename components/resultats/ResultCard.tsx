@@ -33,7 +33,7 @@ type Props = {
   verifiedEmail: string;
 };
 
-const POLL_MS = 45_000;
+const POLL_MS = 180_000;
 const COUNTDOWN_FROM = 3;
 const COUNTDOWN_STEP_MS = 800;
 const REVEALED_KEY = 'iris-je:result-revealed';

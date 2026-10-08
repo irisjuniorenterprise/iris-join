@@ -11,7 +11,7 @@
 import { NextResponse } from 'next/server';
 import { getVerifiedEmail, isFirebaseAdminConfigured } from '@/lib/firebase-admin';
 import { getCandidateDepartment } from '@/lib/slots-store';
-import { getDecision, normEmail } from '@/lib/deliberation-store';
+import { getDecisionCached, normEmail } from '@/lib/deliberation-store';
 import { DEPARTMENT_LABELS } from '@/lib/interview';
 
 export const dynamic = 'force-dynamic';
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, state: 'no-candidature' }, { headers: NO_STORE });
     }
 
-    const decision = await getDecision(normEmail(email));
+    const decision = await getDecisionCached(normEmail(email));
     if (!decision || !decision.published) {
       return NextResponse.json({ ok: true, state: 'pending' }, { headers: NO_STORE });
     }

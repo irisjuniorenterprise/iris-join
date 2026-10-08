@@ -105,7 +105,8 @@ test.describe('API : rien ne répond à un visiteur anonyme', () => {
     test(`${method.toUpperCase()} ${path} refuse l’accès`, async ({ request }) => {
       const response = await request[method](path, { data: {} });
       // 401/403 en production ; 500 si Firebase Admin n'est pas configuré (CI) — jamais 200.
-      expect(response.status()).toBeGreaterThanOrEqual(400);
+      // Liste fermée : un 404 ou un 400 viendrait d'un autre site, pas d'un accès refusé.
+      expect([401, 403, 500]).toContain(response.status());
       expect(await response.text()).not.toMatch(/candidatures?"?:\s*\[/);
     });
   }

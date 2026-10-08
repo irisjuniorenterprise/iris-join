@@ -12,6 +12,7 @@
 
 import { FieldValue, type DocumentData, type DocumentReference } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebase-admin';
+import { CACHE_TAGS, dataCache, invalidate } from './data-cache';
 import {
   DEFAULT_INTERVIEW_MODE,
   DEPARTMENT_KEYS,
@@ -38,6 +39,18 @@ export type Slot = {
 export type AdminSlot = Slot & { bookedByEmail?: string };
 
 const COLLECTION = 'slots';
+
+/** Les créneaux visibles par les candidats ont changé : on force leur relecture. */
+function invalidateSlots(): void {
+  invalidate(CACHE_TAGS.slots);
+}
+
+/** Invalide le cache des créneaux dès qu'une écriture (transaction) a réussi. */
+async function invalidateOnSuccess<T extends { ok: boolean }>(operation: Promise<T>): Promise<T> {
+  const result = await operation;
+  if (result.ok) invalidateSlots();
+  return result;
+}
 
 // Document témoin : évite de recréer la grille à chaque requête (et de
 // ressusciter des créneaux que les RH auraient supprimés à la main).
@@ -136,6 +149,7 @@ async function ensureSlotGrid(): Promise<void> {
     }
   }
   await Promise.all(writes);
+  if (writes.length > 0) invalidateSlots();
 
   await metaRef.set({ version: GRID_VERSION, updatedAt: new Date().toISOString() });
   gridChecked = true;
@@ -145,11 +159,9 @@ async function ensureSlotGrid(): Promise<void> {
  * Créneaux d'UN département, triés par date puis heure. Requête sur un
  * seul champ : aucun index composite à créer dans la console Firestore.
  */
-export async function getSlotsForDepartment(department: DepartmentKey): Promise<Slot[]> {
+async function readSlotsForDepartment(department: DepartmentKey): Promise<Slot[]> {
   const db = getAdminDb();
   if (!db) throw new Error('firestore-not-configured');
-
-  await ensureSlotGrid();
 
   const snapshot = await db
     .collection(COLLECTION)
@@ -160,6 +172,26 @@ export async function getSlotsForDepartment(department: DepartmentKey): Promise<
     .map((doc) => toSlot(doc.id, doc.data()))
     .filter((slot): slot is Slot => slot !== null)
     .sort(sortSlots);
+}
+
+/**
+ * Version en cache partagé : ~24 lectures Firestore par relecture, au plus
+ * toutes les 30 s par département (et immédiatement après toute réservation
+ * ou modification de créneau, voir `invalidateSlots`). Un affichage
+ * légèrement en retard est sans danger : `bookSlot` revérifie le créneau
+ * dans une transaction.
+ */
+const readSlotsForDepartmentCached = dataCache(readSlotsForDepartment, ['slots-by-department'], {
+  revalidate: 30,
+  tags: [CACHE_TAGS.slots],
+});
+
+export async function getSlotsForDepartment(department: DepartmentKey): Promise<Slot[]> {
+  const db = getAdminDb();
+  if (!db) throw new Error('firestore-not-configured');
+
+  await ensureSlotGrid();
+  return readSlotsForDepartmentCached(department);
 }
 
 /* ------------------------------------------------------------------ */
@@ -290,7 +322,10 @@ export async function releaseMismatchedBookings(
     released = true;
   }
 
-  if (released) await batch.commit();
+  if (released) {
+    await batch.commit();
+    invalidateSlots();
+  }
   return released;
 }
 
@@ -313,7 +348,7 @@ export async function bookSlot(
 
   const ref = db.collection(COLLECTION).doc(slotId);
 
-  return db.runTransaction(async (tx) => {
+  return invalidateOnSuccess(db.runTransaction(async (tx) => {
     const doc = await tx.get(ref);
     if (!doc.exists) return { ok: false, reason: 'not-found' as const };
 
@@ -331,7 +366,7 @@ export async function bookSlot(
 
     tx.update(ref, { booked: true, bookedByEmail: email, reminderSentAt: FieldValue.delete() });
     return { ok: true, slot: { ...slot, booked: true } };
-  });
+  }));
 }
 
 /* ================================================================== */
@@ -409,6 +444,7 @@ export async function createSlots(items: NewSlot[]): Promise<{ created: number; 
   }
 
   await Promise.all(writes);
+  if (created > 0) invalidateSlots();
   return { created, skipped };
 }
 
@@ -438,7 +474,7 @@ export async function updateSlot(
 
   const ref = db.collection(COLLECTION).doc(id);
 
-  return db.runTransaction(async (tx) => {
+  return invalidateOnSuccess(db.runTransaction(async (tx) => {
     const doc = await tx.get(ref);
     const previous = doc.exists ? toAdminSlot(doc.id, doc.data() as DocumentData) : null;
     if (!previous) return { ok: false, reason: 'not-found' as const };
@@ -480,7 +516,7 @@ export async function updateSlot(
     }
 
     return { ok: true, slot: { ...previous, ...next }, previous };
-  });
+  }));
 }
 
 /** Supprime un créneau LIBRE (un créneau réservé doit d'abord être libéré). */
@@ -492,7 +528,7 @@ export async function deleteSlot(
 
   const ref = db.collection(COLLECTION).doc(id);
 
-  return db.runTransaction(async (tx) => {
+  return invalidateOnSuccess(db.runTransaction(async (tx) => {
     const doc = await tx.get(ref);
     const slot = doc.exists ? toAdminSlot(doc.id, doc.data() as DocumentData) : null;
     if (!slot) return { ok: false, reason: 'not-found' as const };
@@ -500,7 +536,7 @@ export async function deleteSlot(
 
     tx.delete(ref);
     return { ok: true, slot };
-  });
+  }));
 }
 
 /**
@@ -521,7 +557,7 @@ export async function assignSlot(
 
   const ref = db.collection(COLLECTION).doc(slotId);
 
-  return db.runTransaction(async (tx) => {
+  return invalidateOnSuccess(db.runTransaction(async (tx) => {
     const doc = await tx.get(ref);
     const target = doc.exists ? toAdminSlot(doc.id, doc.data() as DocumentData) : null;
     if (!target) return { ok: false, reason: 'not-found' as const };
@@ -550,7 +586,7 @@ export async function assignSlot(
     }
 
     return { ok: true, slot: { ...target, booked: true, bookedByEmail: email }, previous };
-  });
+  }));
 }
 
 /** Libère un créneau réservé (annulation de l'entretien). */
@@ -565,7 +601,7 @@ export async function releaseSlot(
 
   const ref = db.collection(COLLECTION).doc(slotId);
 
-  return db.runTransaction(async (tx) => {
+  return invalidateOnSuccess(db.runTransaction(async (tx) => {
     const doc = await tx.get(ref);
     const slot = doc.exists ? toAdminSlot(doc.id, doc.data() as DocumentData) : null;
     if (!slot) return { ok: false, reason: 'not-found' as const };
@@ -578,7 +614,7 @@ export async function releaseSlot(
       reminderSentAt: FieldValue.delete(),
     });
     return { ok: true, slot: { ...slot, booked: false, bookedByEmail: undefined }, email };
-  });
+  }));
 }
 
 /* ================================================================== */

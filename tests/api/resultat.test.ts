@@ -15,7 +15,7 @@ vi.mock('@/lib/firebase-admin', () => ({
 vi.mock('@/lib/slots-store', () => ({ getCandidateDepartment: mocks.getCandidateDepartment }));
 vi.mock('@/lib/deliberation-store', async () => {
   // On garde la vraie normEmail ; seule la lecture Firestore est simulée.
-  return { getDecision: mocks.getDecision, normEmail: (e: string) => e.trim().toLowerCase() };
+  return { getDecisionCached: mocks.getDecision, normEmail: (e: string) => e.trim().toLowerCase() };
 });
 
 import { GET } from '@/app/api/resultat/route';

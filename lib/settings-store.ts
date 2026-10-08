@@ -18,6 +18,7 @@
 // Une modification faite par l'admin est visible immédiatement sur cette
 // instance et, au plus tard après CACHE_TTL_MS, sur les autres.
 import { getAdminDb } from './firebase-admin';
+import { CACHE_TAGS, dataCache, invalidate } from './data-cache';
 import {
   DEFAULT_SERVICE_WINDOWS,
   SERVICE_KEYS,
@@ -72,6 +73,17 @@ async function readServiceWindows(): Promise<ServiceWindows> {
   };
 }
 
+/**
+ * Lecture mise en cache PARTAGÉE entre toutes les instances (en plus du cache
+ * mémoire ci-dessous) : au plus une lecture Firestore par minute au total,
+ * au lieu d'une par instance serverless. Une modification admin l'invalide
+ * immédiatement (voir `updateServiceWindow`).
+ */
+const readServiceWindowsShared = dataCache(readServiceWindows, ['service-windows'], {
+  revalidate: 60,
+  tags: [CACHE_TAGS.settings],
+});
+
 /** Vide le cache (utile après une modification, ou pour forcer une relecture). */
 export function resetServiceWindowsCache(): void {
   cache = null;
@@ -85,7 +97,7 @@ export async function getServiceWindows(): Promise<ServiceWindows> {
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.windows;
   if (inflight) return inflight;
 
-  inflight = readServiceWindows()
+  inflight = readServiceWindowsShared()
     .then((windows) => {
       cache = { at: Date.now(), windows };
       return windows;
@@ -121,7 +133,8 @@ export async function updateServiceWindow(
     { merge: true },
   );
 
-  // La valeur en cache est périmée : relecture immédiate de la valeur à jour.
+  // Les valeurs en cache sont périmées : relecture immédiate de la valeur à jour.
+  invalidate(CACHE_TAGS.settings);
   resetServiceWindowsCache();
   return getServiceWindows();
 }
