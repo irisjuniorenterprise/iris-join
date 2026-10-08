@@ -5,6 +5,18 @@
 // jamais importé par un composant client). Un seul document Firestore
 // (settings/serviceWindows) porte les deux périodes : simple à lire en
 // un aller, simple à modifier depuis le panneau admin.
+//
+// Ce document est lu à CHAQUE affichage de page (accueil, /candidature,
+// /entretien, pied de page) et à chaque appel d'API public (créneaux,
+// réservation, candidature). Pour ne pas consommer le quota de lectures
+// Firestore inutilement, la lecture est donc :
+//  - gardée CACHE_TTL_MS en mémoire (le STATUT ouvert / fermé reste, lui,
+//    recalculé à chaque requête avec l'heure actuelle) ;
+//  - partagée entre les requêtes simultanées (une seule lecture en vol) ;
+//  - remplacée par la dernière valeur connue si Firestore est indisponible
+//    ou si le quota est dépassé.
+// Une modification faite par l'admin est visible immédiatement sur cette
+// instance et, au plus tard après CACHE_TTL_MS, sur les autres.
 import { getAdminDb } from './firebase-admin';
 import {
   DEFAULT_SERVICE_WINDOWS,
@@ -19,6 +31,19 @@ import {
 const SETTINGS_COLLECTION = 'settings';
 const SERVICE_WINDOWS_DOC = 'serviceWindows';
 
+/** Durée de validité du cache mémoire. */
+const CACHE_TTL_MS = 30_000;
+
+/** Délai avant de retenter Firestore après un échec (on sert la valeur en cache entre-temps). */
+const ERROR_RETRY_MS = 5_000;
+
+// Désactivé sous Vitest : les tests modifient la base entre deux cas et
+// doivent toujours lire l'état réel.
+const CACHE_ENABLED = process.env.NODE_ENV !== 'test';
+
+let cache: { at: number; windows: ServiceWindows } | null = null;
+let inflight: Promise<ServiceWindows> | null = null;
+
 function isIsoDateTime(value: unknown): value is string {
   return typeof value === 'string' && !Number.isNaN(new Date(value).getTime());
 }
@@ -32,8 +57,8 @@ function sanitizeWindow(raw: unknown): ServiceWindow {
   };
 }
 
-/** Lit les deux fenêtres. Renvoie « pas de limite » des deux côtés si le document n'existe pas encore. */
-export async function getServiceWindows(): Promise<ServiceWindows> {
+/** Lecture directe de Firestore (1 lecture), sans cache. */
+async function readServiceWindows(): Promise<ServiceWindows> {
   const db = getAdminDb();
   if (!db) return DEFAULT_SERVICE_WINDOWS;
 
@@ -45,6 +70,41 @@ export async function getServiceWindows(): Promise<ServiceWindows> {
     candidature: sanitizeWindow(data.candidature),
     entretien: sanitizeWindow(data.entretien),
   };
+}
+
+/** Vide le cache (utile après une modification, ou pour forcer une relecture). */
+export function resetServiceWindowsCache(): void {
+  cache = null;
+  inflight = null;
+}
+
+/** Lit les deux fenêtres. Renvoie « pas de limite » des deux côtés si le document n'existe pas encore. */
+export async function getServiceWindows(): Promise<ServiceWindows> {
+  if (!CACHE_ENABLED) return readServiceWindows();
+
+  if (cache && Date.now() - cache.at < CACHE_TTL_MS) return cache.windows;
+  if (inflight) return inflight;
+
+  inflight = readServiceWindows()
+    .then((windows) => {
+      cache = { at: Date.now(), windows };
+      return windows;
+    })
+    .catch((err) => {
+      if (cache) {
+        // Firestore illisible (quota dépassé, panne…) : on garde la dernière
+        // valeur connue et on retentera dans quelques secondes seulement.
+        console.warn('[settings-store] lecture impossible, dernière valeur connue utilisée', err);
+        cache = { at: Date.now() - CACHE_TTL_MS + ERROR_RETRY_MS, windows: cache.windows };
+        return cache.windows;
+      }
+      throw err;
+    })
+    .finally(() => {
+      inflight = null;
+    });
+
+  return inflight;
 }
 
 /** Met à jour la fenêtre d'UN service (l'autre n'est pas touchée) et renvoie l'état complet à jour. */
@@ -61,6 +121,8 @@ export async function updateServiceWindow(
     { merge: true },
   );
 
+  // La valeur en cache est périmée : relecture immédiate de la valeur à jour.
+  resetServiceWindowsCache();
   return getServiceWindows();
 }
 

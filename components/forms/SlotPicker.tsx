@@ -6,8 +6,11 @@
 // formulaire de candidature : les créneaux des autres départements (qui
 // se déroulent en parallèle) ne sont jamais envoyés au navigateur.
 // Cas d'une candidature SANS département (importée par l'admin) : le
-// candidat choisit d'abord son département ici ; il est ensuite enregistré
-// sur sa candidature au moment de la réservation.
+// candidat choisit d'abord son département ici (hors du bloc dépliable, car la
+// sélection des créneaux n'est possible qu'après ce choix) ; il est ensuite
+// enregistré sur sa candidature au moment de la réservation.
+// Les AUTRES données manquantes d'une candidature importée sont proposées dans
+// un bloc facultatif et dépliable (MissingInfoCard), sans bloquer la réservation.
 import {
   useEffect,
   useMemo,
@@ -24,6 +27,7 @@ import { useToast } from '@/lib/toast';
 import { Icons } from '@/components/icons/Icons';
 import ScrollDownButton, { type ScrollDownStep } from '@/components/ui/ScrollDownButton';
 import InterviewCountdown from '@/components/forms/InterviewCountdown';
+import MissingInfoCard from '@/components/forms/MissingInfoCard';
 import {
   DEPARTMENT_LABELS,
   INTERVIEW_DURATION_MINUTES,
@@ -482,6 +486,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
               );
             })}
           </div>
+          <MissingInfoCard verifiedEmail={verifiedEmail} />
         </div>
       </div>
     );
@@ -546,6 +551,9 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
 
           <p className={styles.successNote}>Merci d&rsquo;arriver 5 minutes en avance.</p>
         </div>
+        <div style={{ marginTop: '1.5rem' }}>
+          <MissingInfoCard verifiedEmail={verifiedEmail} />
+        </div>
       </div>
     );
   }
@@ -581,6 +589,7 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
       <div className="form-card">
         <div className={styles.root} data-dept={department}>
           {banner}
+          <MissingInfoCard verifiedEmail={verifiedEmail} />
           <Notice
             icon={Icons.Calendar}
             title="Aucun créneau pour le moment"
@@ -598,6 +607,8 @@ export default function SlotPicker({ verifiedEmail }: SlotPickerProps) {
     <div className="form-card">
       <div className={styles.root} data-dept={department}>
         {banner}
+
+        <MissingInfoCard verifiedEmail={verifiedEmail} />
 
         {/* ------------------------- Étape 1 : jour ------------------------- */}
         <section
