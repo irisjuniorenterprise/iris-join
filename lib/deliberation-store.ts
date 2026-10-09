@@ -45,13 +45,22 @@ function toDecision(id: string, data: DocumentData): AdminDecision | null {
   };
 }
 
-/** Toutes les décisions (brouillons et publiées). */
-export async function listDecisions(): Promise<AdminDecision[]> {
+async function readAllDecisions(): Promise<AdminDecision[]> {
   const snapshot = await getDb().collection(COLLECTION).get();
   return snapshot.docs
     .map((doc) => toDecision(doc.id, doc.data()))
     .filter((d): d is AdminDecision => d !== null);
 }
+
+/**
+ * Toutes les décisions (brouillons et publiées), en cache partagé : l'onglet
+ * « Délibération » ne relit plus toute la collection à chaque ouverture. Toute
+ * écriture (décision, publication, envoi d'e-mail) invalide ce cache.
+ */
+export const listDecisions = dataCache(readAllDecisions, ['decisions-all'], {
+  revalidate: 300,
+  tags: [CACHE_TAGS.decisions],
+});
 
 /** Décisions des clés demandées (clés absentes = pas de décision). */
 export async function getDecisions(keys: string[]): Promise<Map<string, AdminDecision>> {
@@ -222,4 +231,5 @@ export async function markEmailSent(key: string): Promise<void> {
     .collection(COLLECTION)
     .doc(normEmail(key))
     .update({ emailSentAt: new Date().toISOString() });
+  invalidate(CACHE_TAGS.decisions);
 }

@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { denyResponse, requireAdmin } from '@/lib/admin-auth';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { listCandidatureEmails } from '@/lib/admin-cache';
 import { DEPARTMENT_KEYS, DEPARTMENT_LABELS, normalizeDepartment } from '@/lib/interview';
 import { isEmailConfigured, sendResultEmail } from '@/lib/email';
 import {
@@ -65,8 +66,7 @@ export async function GET(request: Request) {
   try {
     const decisions = await listDecisions();
     return NextResponse.json({ ok: true, decisions }, { headers: NO_STORE });
-  } catch (err) {
-    console.error('[api/admin/deliberation] lecture impossible', err);
+  } catch {
     return fail('Erreur serveur lors du chargement de la délibération.', 500);
   }
 }
@@ -82,15 +82,11 @@ export async function PUT(request: Request) {
 
   try {
     // Une décision ne peut concerner qu'un candidat qui a réellement postulé.
-    const db = getAdminDb();
-    if (!db) return fail('Base de données indisponible.', 500);
+    if (!getAdminDb()) return fail('Base de données indisponible.', 500);
 
-    const snapshot = await db.collection('candidatures').select('email').get();
-    const known = new Set<string>();
-    for (const doc of snapshot.docs) {
-      const email = doc.data().email;
-      if (typeof email === 'string') known.add(normEmail(email));
-    }
+    // Liste des e-mails en cache partagé : plus de lecture de TOUTE la collection
+    // `candidatures` à chaque décision enregistrée.
+    const known = new Set<string>((await listCandidatureEmails()).map(normEmail));
 
     const valid = emails.filter((email) => known.has(normEmail(email)));
     if (valid.length === 0) return fail("Aucune candidature ne correspond à ces e-mails.", 404);
@@ -103,8 +99,7 @@ export async function PUT(request: Request) {
       { ok: true, updated, skipped: emails.length - valid.length },
       { headers: NO_STORE },
     );
-  } catch (err) {
-    console.error('[api/admin/deliberation] enregistrement impossible', err);
+  } catch {
     return fail('Erreur serveur.', 500);
   }
 }
@@ -203,8 +198,7 @@ export async function POST(request: Request) {
       { ok: true, emailConfigured: true, results },
       { headers: NO_STORE },
     );
-  } catch (err) {
-    console.error('[api/admin/deliberation] action impossible', err);
+  } catch {
     return fail('Erreur serveur.', 500);
   }
 }

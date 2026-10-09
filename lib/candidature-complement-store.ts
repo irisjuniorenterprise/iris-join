@@ -9,6 +9,7 @@
 // écrasée ; lecture et écriture se font dans la même transaction.
 import type { DocumentData } from 'firebase-admin/firestore';
 import { getAdminDb } from './firebase-admin';
+import { CACHE_TAGS, invalidate } from './data-cache';
 import {
   getMissingKeys,
   isBlank,
@@ -49,7 +50,7 @@ export async function applyComplement(
   if (snapshot.empty) return { ok: false, reason: 'no-candidature' };
   const ref = snapshot.docs[0].ref;
 
-  return db.runTransaction(async (tx): Promise<ApplyComplementResult> => {
+  const outcome = await db.runTransaction(async (tx): Promise<ApplyComplementResult> => {
     const doc = await tx.get(ref);
     if (!doc.exists) return { ok: false, reason: 'no-candidature' };
     const data = doc.data() as DocumentData;
@@ -90,4 +91,8 @@ export async function applyComplement(
 
     return { ok: true, saved, missing: getMissingKeys({ ...data, ...result.values }) };
   });
+
+  // La candidature a changé : la vue admin (lib/admin-cache.ts) doit la relire.
+  if (outcome.ok && outcome.saved.length > 0) invalidate(CACHE_TAGS.candidatures);
+  return outcome;
 }

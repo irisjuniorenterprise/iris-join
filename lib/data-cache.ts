@@ -7,8 +7,9 @@
 //
 // Règles :
 //  - on ne met en cache que des données identiques pour tous les candidats
-//    (liste des créneaux d'un département, réglages) ou clés par e-mail
-//    (décision d'un candidat) — jamais de données admin ;
+//    (liste des créneaux d'un département, réglages), clés par e-mail
+//    (décision d'un candidat), ou des vues ADMIN (lib/admin-cache.ts) qui ne
+//    sont lisibles qu'à travers des routes protégées par `requireAdmin` ;
 //  - chaque écriture qui change ces données appelle `invalidate(tag)` pour
 //    qu'elles soient relues immédiatement ; le TTL (`revalidate`) n'est qu'un
 //    filet de sécurité ;
@@ -23,11 +24,15 @@ export const CACHE_TAGS = {
   slots: 'slots',
   decisions: 'decisions',
   settings: 'settings',
+  candidatures: 'candidatures',
 } as const;
 
 export type CacheTag = (typeof CACHE_TAGS)[keyof typeof CACHE_TAGS];
 
 const CACHE_ENABLED = process.env.NODE_ENV !== 'test';
+
+/** Vrai quand le cache partagé est actif (faux sous Vitest). */
+export const DATA_CACHE_ENABLED = CACHE_ENABLED;
 
 /** Enveloppe `fn` dans le cache partagé (les arguments font partie de la clé). */
 export function dataCache<Args extends unknown[], Result>(
@@ -45,9 +50,8 @@ export function invalidate(...tags: CacheTag[]): void {
   for (const tag of tags) {
     try {
       revalidateTag(tag, { expire: 0 });
-    } catch (err) {
+    } catch {
       // Hors requête Next (script, tâche de fond) : rien à invalider, le TTL prendra le relais.
-      console.warn(`[data-cache] invalidation de « ${tag} » impossible`, err);
     }
   }
 }

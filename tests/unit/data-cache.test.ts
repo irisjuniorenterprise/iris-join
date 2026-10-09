@@ -65,7 +65,6 @@ describe('data-cache — actif en production', () => {
   });
 
   it('invalidate ne casse pas l’écriture si Next refuse (hors requête) et continue avec les autres tags', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     nextCache.revalidateTag.mockImplementationOnce(() => {
       throw new Error('Invariant: static generation store missing');
     });
@@ -73,7 +72,5 @@ describe('data-cache — actif en production', () => {
 
     expect(() => invalidate('slots', 'decisions')).not.toThrow();
     expect(nextCache.revalidateTag).toHaveBeenCalledTimes(2);
-    expect(warn).toHaveBeenCalledTimes(1);
-    warn.mockRestore();
   });
 });

@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { FieldValue, type DocumentReference } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase-admin';
+import { CACHE_TAGS, invalidate } from '@/lib/data-cache';
 import { denyResponse, requireAdmin } from '@/lib/admin-auth';
 
 export const runtime = 'nodejs';
@@ -107,6 +108,8 @@ export async function DELETE(request: Request) {
         removedDecisions += 1;
       }
       await batch.commit();
+      // Candidatures, créneaux libérés et décisions ont changé : les vues admin en cache sont périmées.
+      invalidate(CACHE_TAGS.candidatures, CACHE_TAGS.slots, CACHE_TAGS.decisions);
     }
 
     return NextResponse.json(
@@ -119,8 +122,7 @@ export async function DELETE(request: Request) {
       },
       { headers: NO_STORE },
     );
-  } catch (err) {
-    console.error('[api/admin/candidatures] suppression échouée', err);
+  } catch {
     return fail('Erreur serveur lors de la suppression.', 500);
   }
 }
